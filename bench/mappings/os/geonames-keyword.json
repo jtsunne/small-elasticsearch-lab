@@ -1,0 +1,63 @@
+{
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 0,
+    "index.requests.cache.enable": false
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "geonameid": {
+        "type": "long"
+      },
+      "name": {
+        "type": "text"
+      },
+      "asciiname": {
+        "type": "text"
+      },
+      "alternatenames": {
+        "type": "text"
+      },
+      "feature_class": {
+        "type": "keyword"
+      },
+      "feature_code": {
+        "type": "keyword"
+      },
+      "country_code": {
+        "type": "keyword"
+      },
+      "cc2": {
+        "type": "keyword"
+      },
+      "admin1_code": {
+        "type": "keyword"
+      },
+      "admin2_code": {
+        "type": "keyword"
+      },
+      "admin3_code": {
+        "type": "keyword"
+      },
+      "admin4_code": {
+        "type": "keyword"
+      },
+      "dem": {
+        "type": "keyword"
+      },
+      "timezone": {
+        "type": "keyword"
+      },
+      "population": {
+        "type": "long"
+      },
+      "elevation": {
+        "type": "integer"
+      },
+      "location": {
+        "type": "geo_point"
+      }
+    }
+  }
+}

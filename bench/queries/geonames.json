@@ -1,0 +1,77 @@
+{
+  "corpus": "geonames",
+  "description": "Search-heavy query set. ${kw} is '.keyword' for the dynamic mapping profile and empty for the keyword profile.",
+  "queries": [
+    {
+      "name": "term-filter",
+      "body": {
+        "size": 10,
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "term": {
+                  "country_code${kw}": "DE"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "range-terms-agg",
+      "body": {
+        "size": 0,
+        "query": {
+          "range": {
+            "population": {
+              "gte": 10000
+            }
+          }
+        },
+        "aggs": {
+          "country": {
+            "terms": {
+              "field": "country_code${kw}",
+              "size": 20
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "match",
+      "body": {
+        "size": 10,
+        "query": {
+          "match": {
+            "name": "saint"
+          }
+        }
+      }
+    },
+    {
+      "name": "top-hits",
+      "body": {
+        "size": 10,
+        "sort": [
+          {
+            "population": "desc"
+          }
+        ],
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "term": {
+                  "feature_class${kw}": "P"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

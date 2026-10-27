@@ -1,0 +1,70 @@
+{
+  "corpus": "http_logs",
+  "description": "Logs-style query set: filter, time range with aggregation, full text, newest first. Timestamps are epoch seconds in June 1998, the corpus range.",
+  "queries": [
+    {
+      "name": "term-filter",
+      "body": {
+        "size": 10,
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "term": {
+                  "status": 404
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "range-terms-agg",
+      "body": {
+        "size": 0,
+        "query": {
+          "range": {
+            "@timestamp": {
+              "gte": 898646400,
+              "lt": 898732800
+            }
+          }
+        },
+        "aggs": {
+          "status": {
+            "terms": {
+              "field": "status",
+              "size": 10
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "match",
+      "body": {
+        "size": 10,
+        "query": {
+          "match": {
+            "request": "french"
+          }
+        }
+      }
+    },
+    {
+      "name": "top-hits",
+      "body": {
+        "size": 10,
+        "sort": [
+          {
+            "@timestamp": "desc"
+          }
+        ],
+        "query": {
+          "match_all": {}
+        }
+      }
+    }
+  ]
+}
