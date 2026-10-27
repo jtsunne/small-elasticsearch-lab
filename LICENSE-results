@@ -1,0 +1,23 @@
+Benchmark and test results, and prose
+
+Copyright (c) 2026 Denys Miasnychenko
+
+The following parts of this repository are licensed under the Creative Commons
+Attribution 4.0 International License (CC BY 4.0):
+
+- everything under bench/results/ and results/
+- the prose in README.md files
+
+You may share and adapt this material for any purpose, including commercially,
+as long as you give appropriate credit, provide a link to the licence, and
+indicate if changes were made.
+
+Licence text: https://creativecommons.org/licenses/by/4.0/legalcode
+Summary: https://creativecommons.org/licenses/by/4.0/
+
+Code, configuration files and scripts are licensed under the MIT License, see
+LICENSE.
+
+Benchmark corpora are not part of this repository and are not covered by either
+licence. bench/fetch-corpus.sh downloads them from their publishers; their own
+licences apply.

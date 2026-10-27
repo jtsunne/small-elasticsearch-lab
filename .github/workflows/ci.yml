@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker compose config
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scenarios/*/compose.yaml)
+          if [ ${#files[@]} -eq 0 ]; then echo "no scenario compose files yet"; exit 0; fi
+          for f in "${files[@]}"; do
+            dir=$(dirname "$f")
+            env_args=(--env-file versions.env)
+            if [ -f "$dir/.env.example" ]; then env_args+=(--env-file "$dir/.env.example"); fi
+            echo "checking $f"
+            docker compose --project-directory "$dir" "${env_args[@]}" -f "$f" config -q
+          done
+
+  caddy-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: caddy validate
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # shellcheck disable=SC1091
+          . ./versions.env
+          files=(scenarios/*/Caddyfile tests/*/Caddyfile*)
+          if [ ${#files[@]} -eq 0 ]; then echo "no Caddyfiles yet"; exit 0; fi
+          for f in "${files[@]}"; do
+            echo "validating $f"
+            docker run --rm -v "$PWD/$(dirname "$f"):/cfg:ro" "$CADDY_IMAGE" \
+              caddy validate --adapter caddyfile --config "/cfg/$(basename "$f")"
+          done
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: |
+          set -euo pipefail
+          command -v shellcheck >/dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 -r shellcheck
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bench/loader
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: bench/loader/go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: node --test
+        run: |
+          if [ ! -d generator/test ]; then echo "no generator tests yet"; exit 0; fi
+          node --test generator/test/

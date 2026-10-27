@@ -1,0 +1,12 @@
+.env
+**/certs/*
+!**/certs/gen-certs.sh
+*.pem
+*.key
+*.crt
+*.p12
+bench/corpus/
+bench/work/
+bench/results/*/raw/
+bench/loader/loader
+/bin/
