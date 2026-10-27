@@ -1,0 +1,4 @@
+id	test	site	from	auth	method	path	headers	body	expect_status	expect
+bad-heap-01	health	node	-	elastic	GET	/_cluster/health	-	-	200	jq:.status == "green"
+bad-heap-02	L-M2	node	-	elastic	GET	/_nodes/jvm	-	-	200	jq:[.nodes[].jvm.mem.heap_max_in_bytes][0] == 1610612736
+bad-heap-03	L-M2	node	-	elastic	GET	/_nodes/stats/jvm,breaker,os	-	-	200	record

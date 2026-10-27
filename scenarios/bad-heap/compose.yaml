@@ -1,0 +1,38 @@
+# Deliberately wrong: a 1536 MiB heap in a 2 GiB container leaves about 512 MiB
+# for everything that is not heap. For lab test L-M2 only; do not copy.
+name: bad-heap
+
+services:
+  es01:
+    image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+    environment:
+      - node.name=es01
+      - cluster.name=bad-heap
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - bootstrap.memory_lock=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      - ES_JAVA_OPTS=-Xms1536m -Xmx1536m
+    cpus: 1
+    mem_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  esdata: {}

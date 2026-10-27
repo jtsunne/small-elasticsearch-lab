@@ -1,0 +1,10 @@
+{
+  "size": 0,
+  "runtime_mappings": {
+    "msg_len": {
+      "type": "long",
+      "script": {"source": "emit(params._source.message == null ? 0 : params._source.message.length())"}
+    }
+  },
+  "aggs": {"len": {"terms": {"field": "msg_len", "size": 1000}}}
+}

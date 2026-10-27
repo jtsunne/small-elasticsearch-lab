@@ -1,0 +1,125 @@
+name: es-single-kibana
+
+services:
+  es01:
+    image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+    environment:
+      - node.name=es01
+      - cluster.name=es-single-kibana
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      # Allowed without node certificates only because discovery.type is
+      # single-node; a second node needs transport TLS.
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - bootstrap.memory_lock=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      # Same value auto-sizing picks for a 2 GiB container, set explicitly so the
+      # OpenSearch scenarios (which do not auto-size) run the same heap. Set
+      # ES_HEAP_OPTS to an empty string to let Elasticsearch size it (L-M1).
+      - ES_JAVA_OPTS=${ES_HEAP_OPTS--Xms1g -Xmx1g}
+    cpus: 1
+    mem_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  # One-shot: sets the kibana_system password before Kibana starts, so the
+  # password never has to be typed into Kibana's or anyone's command line.
+  kibana-setup:
+    image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+    depends_on:
+      es01:
+        condition: service_healthy
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD:?set KIBANA_SYSTEM_PASSWORD in .env}
+    networks:
+      - backend
+    restart: "no"
+    # Alphanumeric only, so neither the JSON body nor the curl config needs escaping.
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        for v in "$$ELASTIC_PASSWORD" "$$KIBANA_SYSTEM_PASSWORD"; do
+          [[ $$v =~ ^[A-Za-z0-9]{6,}$$ ]] || { echo "passwords must be alphanumeric, 6+ characters" >&2; exit 1; }
+        done
+        printf '{"password":"%s"}' "$$KIBANA_SYSTEM_PASSWORD" |
+          curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' --data-binary @- \
+            -K <(printf 'user = "elastic:%s"\n' "$$ELASTIC_PASSWORD") \
+            http://es01:9200/_security/user/kibana_system/_password
+        echo
+
+  kibana:
+    image: ${KIBANA_IMAGE:?KIBANA_IMAGE comes from versions.env}
+    depends_on:
+      kibana-setup:
+        condition: service_completed_successfully
+    environment:
+      - SERVER_NAME=kibana
+      - SERVER_PUBLICBASEURL=${KIBANA_PUBLIC_URL:?set KIBANA_PUBLIC_URL in .env}
+      # Straight to the node on the compose network, not through Caddy.
+      - ELASTICSEARCH_HOSTS=http://es01:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD:?set KIBANA_SYSTEM_PASSWORD in .env}
+      # Fixed keys keep sessions and encrypted saved objects (alerting rules,
+      # connectors) valid across restarts; without the saved-objects key
+      # alerting is unavailable.
+      - XPACK_SECURITY_ENCRYPTIONKEY=${KIBANA_SECURITY_KEY:?set KIBANA_SECURITY_KEY in .env}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${KIBANA_SAVED_OBJECTS_KEY:?set KIBANA_SAVED_OBJECTS_KEY in .env}
+      - XPACK_REPORTING_ENCRYPTIONKEY=${KIBANA_REPORTING_KEY:?set KIBANA_REPORTING_KEY in .env}
+    # 1g matches the official compose; Kibana recommends 2g with alerting,
+    # reporting, detection rules or SLOs.
+    mem_limit: ${KIBANA_MEM_LIMIT:-1g}
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE comes from versions.env}
+    depends_on:
+      es01:
+        condition: service_healthy
+    environment:
+      - ES_SITE_ADDRESS=${ES_SITE_ADDRESS:?set ES_SITE_ADDRESS in .env}
+      - KIBANA_SITE_ADDRESS=${KIBANA_SITE_ADDRESS:?set KIBANA_SITE_ADDRESS in .env}
+      - ALLOWED_CIDRS=${ALLOWED_CIDRS:?set ALLOWED_CIDRS in .env}
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+networks:
+  backend: {}
+
+volumes:
+  esdata: {}
+  caddy_data: {}
+  caddy_config: {}

@@ -1,0 +1,17 @@
+# Benchmark override, used by bench/run.sh: the loader talks to the node
+# directly on loopback, so Caddy is left out, and data lives on the dedicated
+# filesystem that run.sh validated.
+services:
+  es01:
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - type: bind
+        source: ${BENCH_DATA_DIR:?set by bench/run.sh}
+        target: /usr/share/elasticsearch/data
+    # Quota alone lets the scheduler spread the node over all cores; pinning
+    # removes that variance. Keep the loader off this core (--loader-cpus).
+    cpuset: "${BENCH_ES_CPUSET:-1}"
+
+  caddy:
+    profiles: [proxy]

@@ -1,0 +1,9 @@
+services:
+  es01:
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - type: bind
+        source: ${BENCH_DATA_DIR:?set by bench/run.sh}
+        target: /usr/share/elasticsearch/data
+    cpuset: "${BENCH_ES_CPUSET:-1}"

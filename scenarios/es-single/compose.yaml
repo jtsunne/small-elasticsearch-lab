@@ -1,0 +1,66 @@
+name: es-single
+
+services:
+  es01:
+    image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+    environment:
+      - node.name=es01
+      - cluster.name=es-single
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      # Allowed without node certificates only because discovery.type is
+      # single-node; a second node needs transport TLS.
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - bootstrap.memory_lock=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      # Same value auto-sizing picks for a 2 GiB container, set explicitly so the
+      # OpenSearch scenarios (which do not auto-size) run the same heap. Set
+      # ES_HEAP_OPTS to an empty string to let Elasticsearch size it (L-M1).
+      - ES_JAVA_OPTS=${ES_HEAP_OPTS--Xms1g -Xmx1g}
+    cpus: 1
+    mem_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE comes from versions.env}
+    depends_on:
+      es01:
+        condition: service_healthy
+    environment:
+      - ES_SITE_ADDRESS=${ES_SITE_ADDRESS:?set ES_SITE_ADDRESS in .env}
+      - ALLOWED_CIDRS=${ALLOWED_CIDRS:?set ALLOWED_CIDRS in .env}
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+networks:
+  backend: {}
+
+volumes:
+  esdata: {}
+  caddy_data: {}
+  caddy_config: {}

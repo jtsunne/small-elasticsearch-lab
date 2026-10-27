@@ -1,0 +1,2 @@
+{"create":{"_index":"secret"}}
+{"message":"foreign index through an allowed path"}
