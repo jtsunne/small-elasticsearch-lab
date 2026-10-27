@@ -1,0 +1,4 @@
+{"index":{"_index":"secret"}}
+{"@timestamp":"2026-10-26T00:00:00Z","message":"foreign index via body"}
+{"create":{"_index":"secret"}}
+{"@timestamp":"2026-10-26T00:00:00Z","message":"foreign index via body"}

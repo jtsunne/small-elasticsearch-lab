@@ -1,0 +1,32 @@
+# Deliberately wrong, kept as a regression fixture. Caddy sorts directives by
+# a fixed order in which handle runs before abort, so an allowed route is
+# proxied for every client and the allowlist only guards paths nobody may use.
+# run-proxy-matrix.sh must fail on this file.
+es.example.com {
+	request_body {
+		max_size 20MB
+	}
+
+	@denied not remote_ip 203.0.113.10/32 198.51.100.0/24
+	abort @denied
+
+	@read {
+		method GET POST
+		path_regexp ^/app-[a-z0-9-]+/_(search|count)$
+	}
+	handle @read {
+		reverse_proxy es01:9200
+	}
+
+	@write {
+		method POST PUT
+		path_regexp ^/app-[a-z0-9-]+/_bulk$
+	}
+	handle @write {
+		reverse_proxy es01:9200
+	}
+
+	handle {
+		respond 404
+	}
+}

@@ -1,0 +1,1 @@
+{"size":0,"aggs":{"a":{"terms":{"field":"_index","size":10000},"aggs":{"b":{"date_histogram":{"field":"@timestamp","fixed_interval":"1s","min_doc_count":0}}}}}}

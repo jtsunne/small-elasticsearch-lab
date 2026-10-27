@@ -1,0 +1,36 @@
+# The corrected Caddyfile from the plan, verbatim. It fixes the abort ordering
+# bug but matches path_regexp on the decoded, cleaned path while reverse_proxy
+# forwards the raw one, so dot segments, doubled slashes and encoded
+# characters reach the upstream unchanged. Kept to show that difference.
+es.example.com {
+	request_body {
+		max_size 20MB
+	}
+
+	@allowed remote_ip 203.0.113.10/32 198.51.100.0/24
+	handle @allowed {
+		@read {
+			method GET POST
+			path_regexp ^/app-[a-z0-9-]+/_(search|count)$
+		}
+		handle @read {
+			reverse_proxy es01:9200
+		}
+
+		@write {
+			method POST PUT
+			path_regexp ^/app-[a-z0-9-]+/_bulk$
+		}
+		handle @write {
+			reverse_proxy es01:9200
+		}
+
+		handle {
+			respond 404
+		}
+	}
+
+	handle {
+		abort
+	}
+}

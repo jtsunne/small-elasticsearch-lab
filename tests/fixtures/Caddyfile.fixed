@@ -1,0 +1,37 @@
+# The plan's structure (route handles nested inside the allowlist handle, a
+# final handle that aborts everything else) with the route matchers run on
+# the raw request URI. path and path_regexp see the decoded, cleaned path,
+# but reverse_proxy forwards the raw one, so a matcher on the cleaned path
+# approves requests the upstream reads differently.
+es.example.com {
+	request_body {
+		max_size 20MB
+	}
+
+	@allowed remote_ip 203.0.113.10/32 198.51.100.0/24
+	handle @allowed {
+		@read {
+			method GET POST
+			expression `{http.request.uri}.matches("^/app-[a-z0-9-]+/_(search|count)([?].*)?$")`
+		}
+		handle @read {
+			reverse_proxy es01:9200
+		}
+
+		@write {
+			method POST PUT
+			expression `{http.request.uri}.matches("^/app-[a-z0-9-]+/_bulk([?].*)?$")`
+		}
+		handle @write {
+			reverse_proxy es01:9200
+		}
+
+		handle {
+			respond 404
+		}
+	}
+
+	handle {
+		abort
+	}
+}

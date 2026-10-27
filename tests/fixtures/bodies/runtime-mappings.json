@@ -1,0 +1,1 @@
+{"runtime_mappings":{"one":{"type":"long","script":{"source":"emit(1)"}}},"aggs":{"s":{"sum":{"field":"one"}}},"size":0}

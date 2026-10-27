@@ -1,0 +1,112 @@
+id	lab	engine	client	method	target	headers	body	proxy	upstream	backend	layer	note
+# Proxy matrix, plan 5.4 L-P*. Tab-separated, 13 columns, "-" for an empty cell. Format: tests/README.md.
+# Allowlist: a client outside it gets nothing, whatever the path. P01a is the handle/abort ordering bug.
+P01a	L-P1	any	denied	GET	/app-a/_search	-	-	abort	-	-	caddy	allowed route from a non-allowlisted client
+P01b	L-P1	any	denied	POST	/app-a/_bulk	Content-Type: application/x-ndjson	bulk-ok.ndjson	abort	-	-	caddy	allowed write route from a non-allowlisted client
+P01c	L-P1	any	denied	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}	search.json	abort	-	-	caddy	valid credentials do not help a non-allowlisted client
+P01d	L-P1	any	denied	GET	/_cluster/settings	-	-	abort	-	-	caddy	admin path from a non-allowlisted client: abort, not 404
+P01e	L-P1	any	denied	GET	/	-	-	abort	-	-	caddy	root from a non-allowlisted client
+P01f	L-P1	any	denied	POST	/app-a/_bulk	Content-Type: application/x-ndjson	fill:21000000	abort	-	-	caddy	oversized body from a non-allowlisted client
+# Positive controls: allowed routes reach the engine unchanged; the engine does authentication.
+P02a	L-P2	any	allowed	GET	/app-a/_search	-	-	upstream	target=@sent;method=GET	401	engine	no credentials: the proxy passes it, the engine refuses
+P03a	L-P3	any	allowed	GET	/app-a/_search	Authorization: ${APP_AUTH}	-	upstream	target=@sent;header:Authorization=${APP_AUTH}	200	-	app credential on the read route
+P03b	L-P3	any	allowed	GET	/app-a/_count	Authorization: ${APP_AUTH}	-	upstream	target=@sent	200	-	count route
+P03c	L-P3	any	allowed	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}	search.json	upstream	target=@sent;method=POST;body_bytes=36	200	-	POST search with a body
+P03d	L-P3	any	allowed	POST	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-ok.ndjson	upstream	target=@sent;method=POST;body_bytes=79	200	-	bulk into the app index
+P03e	L-P3	any	allowed	PUT	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-ok.ndjson	upstream	target=@sent;method=PUT	200	-	the write matcher allows PUT as well as POST
+P03f	L-P3	any	allowed	GET	/app-a/_search?q=*&size=1	Authorization: ${APP_AUTH}	-	upstream	target=@sent	200	-	query string is not part of the path match
+P03g	L-P3	any	allowed	GET	/app-a/_search	Authorization: ${APP_AUTH}|HTTP/1.0	-	upstream	target=@sent;proto=HTTP/1.1	200	-	HTTP/1.0 client; Caddy speaks HTTP/1.1 upstream
+# Admin and non-app endpoints: 404 from Caddy for an allowlisted client.
+P04a	L-P4	any	allowed	GET	/_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	cluster settings
+P04b	L-P4	any	allowed	GET	/_cat/indices	Authorization: ${APP_AUTH}	-	404	-	-	caddy	cat API
+P04c	L-P4	any	allowed	GET	/_nodes	Authorization: ${APP_AUTH}	-	404	-	-	caddy	nodes info
+P04d	L-P4	es	allowed	GET	/_security/user	Authorization: ${APP_AUTH}	-	404	-	-	caddy	ES security API
+P04e	L-P4	any	allowed	GET	/_cluster/health	Authorization: ${APP_AUTH}	-	404	-	-	caddy	cluster health
+P04f	L-P4	any	allowed	GET	/_snapshot	Authorization: ${APP_AUTH}	-	404	-	-	caddy	snapshot API
+P04g	L-P4	any	allowed	GET	/_tasks	Authorization: ${APP_AUTH}	-	404	-	-	caddy	tasks API
+P04h	L-P4	any	allowed	GET	/app-a/_mapping	Authorization: ${APP_AUTH}	-	404	-	-	caddy	index API outside the route list
+P04i	L-P4	any	allowed	GET	/app-a/_doc/1	Authorization: ${APP_AUTH}	-	404	-	-	caddy	document GET is not an allowed route
+P04j	L-P4	any	allowed	POST	/app-a/_delete_by_query	Authorization: ${APP_AUTH}|Content-Type: application/json	search.json	404	-	-	caddy	delete by query
+P04k	L-P4	any	allowed	POST	/_reindex	Authorization: ${APP_AUTH}|Content-Type: application/json	search.json	404	-	-	caddy	reindex
+P04l	L-P4	es	allowed	POST	/_security/api_key	Authorization: ${APP_AUTH}|Content-Type: application/json	search.json	404	-	-	caddy	ES API key creation
+P04m	L-P4	es	allowed	POST	/_query	Authorization: ${APP_AUTH}|Content-Type: application/json	search.json	404	-	-	caddy	ES|QL
+P04n	L-P4	es	allowed	GET	/_license	Authorization: ${APP_AUTH}	-	404	-	-	caddy	licence API
+P04o	L-P4	os	allowed	GET	/_plugins/_security/api/internalusers	Authorization: ${APP_AUTH}	-	404	-	-	caddy	OpenSearch security REST API
+P04p	L-P4	os	allowed	GET	/_opendistro/_security/api/roles	Authorization: ${APP_AUTH}	-	404	-	-	caddy	legacy OpenSearch security path
+P04q	L-P4	os	allowed	GET	/_plugins/_security/authinfo	Authorization: ${APP_AUTH}	-	404	-	-	caddy	OpenSearch authinfo
+P04r	L-P4	os	allowed	POST	/_plugins/_sql	Authorization: ${APP_AUTH}|Content-Type: application/json	search.json	404	-	-	caddy	OpenSearch SQL
+P04s	L-P4	os	allowed	GET	/_plugins/_ism/policies	Authorization: ${APP_AUTH}	-	404	-	-	caddy	OpenSearch ISM
+P04t	L-P4	os	allowed	GET	/_plugins%2F_security/api/internalusers	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded slash in an OpenSearch admin path
+# Encoded, case and dot-segment variants of admin paths.
+P05a	L-P5	any	allowed	GET	/%5Fcluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded underscore, upper-case hex
+P05b	L-P5	any	allowed	GET	/%5fcluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded underscore, lower-case hex
+P05c	L-P5	any	allowed	GET	/%255Fcluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	double-encoded underscore
+P06a	L-P6	any	allowed	GET	/_CLUSTER/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	upper-case admin path
+P06b	L-P6	any	allowed	GET	/APP-A/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	path_regexp is case-sensitive; index names are lower-case anyway
+P06c	L-P6	any	allowed	GET	/app-a/_SEARCH	Authorization: ${APP_AUTH}	-	404	-	-	caddy	upper-case endpoint
+P07a	L-P7	any	allowed	GET	//_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	doubled slash
+P07b	L-P7	any	allowed	GET	/./_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	dot segment
+P07c	L-P7	any	allowed	GET	/app-a/../_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	parent segment
+P07d	L-P7	any	allowed	GET	/app-a/%2E%2E/_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded parent segment
+P07e	L-P7	any	allowed	GET	/_cluster/settings/../../app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	cleans to an allowed path; a cleaned-path matcher forwards the raw dot segments (Caddy 2.11.7)
+P07f	L-P7	any	allowed	GET	//app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	doubled slash before an allowed path; a cleaned-path matcher forwards it raw
+P07l	L-P7	any	allowed	GET	/_security/../app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	a cleaned-path matcher approves it and forwards the raw path to the engine
+P07m	L-P7	any	allowed	GET	/_snapshot/../../app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	same, with a snapshot prefix
+P07n	L-P7	any	allowed	GET	/_cluster%2Fsettings/..%2F..%2Fapp-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	Caddy decodes %2F before cleaning, so a cleaned-path matcher approves it and forwards it raw
+P07g	L-P7	any	allowed	GET	/app-a/_search/	Authorization: ${APP_AUTH}	-	404	-	-	caddy	trailing slash
+P07h	L-P7	any	allowed	GET	/app-a/_search;x=1	Authorization: ${APP_AUTH}	-	404	-	-	caddy	path parameter
+P07i	L-P7	any	allowed	GET	/app-a/_search%0A	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded newline; RE2 $ does not match before a trailing newline
+P07j	L-P7	any	allowed	GET	/app-a/_search%00	Authorization: ${APP_AUTH}	-	!upstream	-	-	caddy	encoded NUL
+P07k	L-P7	any	allowed	GET	/app-a%2F_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	decodes to an allowed path; raw, it is one segment, so the engine would read a different request
+# Index lists, wildcards, _all, date math.
+P08a	L-P8	any	allowed	GET	/app-a,secret/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	comma index list
+P08b	L-P8	any	allowed	GET	/app-a%2Csecret/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded comma
+P08c	L-P8	any	allowed	GET	/app-a%2csecret/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded comma, lower-case hex
+P08d	L-P8	any	allowed	GET	/app-a%252Csecret/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	double-encoded comma
+P08e	L-P8	any	allowed	GET	/app-a,-app-b/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	exclusion syntax
+P09a	L-P9	any	allowed	GET	/app-*/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	wildcard
+P09b	L-P9	any	allowed	GET	/app-a%2A/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded wildcard
+P09c	L-P9	any	allowed	GET	/*/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	bare wildcard
+P09d	L-P9	any	allowed	GET	/_all/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	_all
+P09e	L-P9	any	allowed	GET	/app-a:secret/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	colon (remote cluster syntax)
+P10a	L-P10	any	allowed	GET	/%3Capp-%7Bnow%2Fd%7D%3E/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	date math
+# Encoded characters in an allowed path. Run against tests/fixtures/Caddyfile.plan these show what Caddy forwards (the raw path).
+P11a	L-P11	any	allowed	GET	/app%2Da/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded hyphen; a cleaned-path matcher forwards the raw encoded path (Caddy 2.11.7), the raw-URI matcher refuses it
+P11b	L-P11	any	allowed	GET	/app-a/%5Fsearch	Authorization: ${APP_AUTH}	-	404	-	-	caddy	encoded underscore; same
+# Body-borne index names pass the proxy; only the engine role stops them.
+P12a	L-P12	any	allowed	POST	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-foreign.ndjson	upstream	target=@sent;body_bytes=207	bulk-item-403	engine	foreign _index in the bulk body
+P12b	L-P12	any	allowed	POST	/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-foreign.ndjson	404	-	-	caddy	bulk without an index in the path
+# Expensive requests pass every proxy rule.
+P13a	L-P13	any	allowed	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}	runtime-mappings.json	upstream	target=@sent	200	none	runtime mapping script: not covered by the proxy
+P13b	L-P13	any	allowed	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}	heavy-agg.json	upstream	target=@sent	200	none	heavy aggregation: not covered by the proxy
+P13c	L-P13	any	allowed	GET	/app-a/_search?scroll=1m	Authorization: ${APP_AUTH}	-	upstream	target=@sent	200	none	opens a scroll context; only the continuation path is blocked
+# Body size limit (request_body max_size 20MB = 20000000 bytes).
+P14a	L-P14	any	allowed	POST	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	fill:21000000	413	body_bytes=20000000;body_error=unexpected EOF	-	caddy	Caddy streams the body: the upstream gets the first 20000000 bytes of an incomplete request, the client gets 413
+P14b	L-P14	any	allowed	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}	fill:21000000	413	body_bytes=20000000;body_error=unexpected EOF	-	caddy	same on the read route
+P14c	L-P14	any	allowed	POST	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}|Transfer-Encoding: chunked	fill:21000000	413	body_bytes=20000000;body_error=unexpected EOF	-	caddy	chunked body over the limit, no Content-Length
+P14d	L-P14	any	allowed	POST	/app-a/_bulk	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	fill:19000000	upstream	body_bytes=19000000	4xx	engine	body under the limit is forwarded whole; the engine rejects the junk
+# Method override and URL-rewrite headers are forwarded but change nothing.
+P15a	L-P15	any	allowed	POST	/app-a/_search	Content-Type: application/json|Authorization: ${APP_AUTH}|X-HTTP-Method-Override: DELETE	search.json	upstream	method=POST	200	-	engine ignores the override header
+P15b	L-P15	any	allowed	GET	/app-a/_search	Authorization: ${APP_AUTH}|X-Original-URL: /_cluster/settings|X-Rewrite-URL: /_cluster/settings	-	upstream	target=@sent	200	-	rewrite headers are not honoured by Caddy or the engine
+P15c	L-P15	any	allowed	GET	/app-a/_count	Authorization: ${APP_AUTH}	-	upstream	target=@sent	200	-	index still exists after the override attempts
+# Request line forms.
+P16a	L-P16	any	allowed	GET	http://es01:9200/_cluster/settings	Authorization: ${APP_AUTH}	-	!upstream	-	-	caddy	absolute form naming the backend host
+P16b	L-P16	any	allowed	GET	http://{HOST}/_cluster/settings	Authorization: ${APP_AUTH}	-	404	-	-	caddy	absolute form naming the site
+P16c	L-P16	any	allowed	GET	http://{HOST}/app-a/_search	Authorization: ${APP_AUTH}	-	404|upstream	target=/app-a/_search	200	-	absolute form to an allowed route: refused, or forwarded in origin form
+P16d	L-P16	any	allowed	GET	/_cluster/settings	Host:|HTTP/1.0	-	!upstream	-	-	caddy	HTTP/1.0 without a Host header
+P16e	L-P16	any	denied	GET	http://{HOST}/app-a/_search	-	-	abort	-	-	caddy	absolute form does not change the client address
+# Search continuation and multi-target endpoints.
+P17a	L-P17	any	allowed	POST	/_msearch	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-ok.ndjson	404	-	-	caddy	multi search, no index
+P17b	L-P17	any	allowed	POST	/app-a/_msearch	Content-Type: application/x-ndjson|Authorization: ${APP_AUTH}	bulk-ok.ndjson	404	-	-	caddy	multi search with an index; the body could name others
+P17c	L-P17	es	allowed	POST	/app-a/_async_search	Content-Type: application/json|Authorization: ${APP_AUTH}	search.json	404	-	-	caddy	async search
+P17d	L-P17	any	allowed	POST	/app-a/_pit?keep_alive=1m	Authorization: ${APP_AUTH}	-	404	-	-	caddy	point in time (ES path)
+P17e	L-P17	os	allowed	POST	/app-a/_search/point_in_time?keep_alive=1m	Authorization: ${APP_AUTH}	-	404	-	-	caddy	point in time (OpenSearch path)
+P18a	L-P18	any	allowed	POST	/_search/scroll	Content-Type: application/json|Authorization: ${APP_AUTH}	search.json	404	-	-	caddy	scroll continuation
+P18b	L-P18	any	allowed	GET	/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	search over all indices
+P19a	L-P19	any	allowed	DELETE	/app-a	Authorization: ${APP_AUTH}	-	404	-	-	caddy	delete index
+P19b	L-P19	any	allowed	DELETE	/app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	method not in the read matcher
+P19c	L-P19	any	allowed	PUT	/app-a/_search	Authorization: ${APP_AUTH}	-	404	-	-	caddy	method not in the read matcher
+P19d	L-P19	any	allowed	GET	/app-a/_bulk	Authorization: ${APP_AUTH}	-	404	-	-	caddy	method not in the write matcher
+P19e	L-P19	any	allowed	PATCH	/app-a/_bulk	Authorization: ${APP_AUTH}	-	404	-	-	caddy	method not in the write matcher
+P20a	L-P20	any	allowed	GET	/	Authorization: ${APP_AUTH}	-	404	-	-	caddy	no version banner
+P20b	L-P20	any	allowed	HEAD	/	-	-	404	-	-	caddy	HEAD on root
