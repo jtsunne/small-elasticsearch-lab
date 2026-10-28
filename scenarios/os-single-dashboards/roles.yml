@@ -1,0 +1,23 @@
+_meta:
+  type: "roles"
+  config_version: 2
+
+# Same scope as the Elasticsearch app role: search and append documents in the
+# app-* indices, nothing else. Not "write" or "crud": those include update and
+# delete. No indices:admin/create, so the app cannot create indices by writing
+# to a new name; an operator creates them.
+app_writer:
+  reserved: false
+  description: "Search and index documents in app-* only"
+  cluster_permissions:
+    # A _bulk request is authorized at cluster level first, then every item
+    # against its own index.
+    - "indices:data/write/bulk"
+  index_permissions:
+    - index_patterns:
+        - "app-*"
+      allowed_actions:
+        - "read"
+        - "indices:data/write/index"
+        - "indices:data/write/bulk*"
+        - "indices:admin/mapping/put"

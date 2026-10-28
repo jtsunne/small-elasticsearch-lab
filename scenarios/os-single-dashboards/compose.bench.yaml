@@ -1,0 +1,33 @@
+# Benchmark override, used by bench/run.sh together with compose.yaml. The
+# loader talks to the node directly over plain HTTP on 127.0.0.1, the same way
+# it talks to Elasticsearch, so neither TLS nor Caddy is part of the numbers.
+# Authentication stays on: run.sh logs in as admin with LOADER_PASSWORD.
+# Dashboards keeps running, so its memory and CPU are part of the host load.
+services:
+  os01:
+    environment:
+      plugins.security.ssl.http.enabled: "false"
+    ports:
+      - 127.0.0.1:9200:9200
+    volumes:
+      # Same target as the named volume in compose.yaml, so this replaces it.
+      # The container runs as uid 1000 and must be able to write here.
+      - type: bind
+        source: ${BENCH_DATA_DIR:?BENCH_DATA_DIR is set by bench/run.sh}
+        target: /usr/share/opensearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test "$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9200/)" = 401
+
+  osd01:
+    # Follows the node to plain HTTP. The entrypoint turns OPENSEARCH_HOSTS
+    # into --opensearch.hosts, which overrides opensearch_dashboards.yml.
+    environment:
+      OPENSEARCH_HOSTS: '["http://os01:9200"]'
+
+  caddy:
+    # Not started during a benchmark: nothing goes through it.
+    profiles:
+      - proxy

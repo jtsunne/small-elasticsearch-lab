@@ -1,0 +1,71 @@
+id	test	site	from	auth	method	path	headers	body	expect_status	expect
+os-single-dashboards-01	setup	node	-	admin	PUT	/app-a	-	@bodies/index.json	200	jq:.acknowledged == true
+os-single-dashboards-02	setup	node	-	admin	PUT	/secret	-	@bodies/index.json	200	jq:.acknowledged == true
+os-single-dashboards-03	L-O2	node	-	none	GET	/	-	-	401	-
+os-single-dashboards-04	L-O2	node	-	admin	GET	/_plugins/_security/authinfo	-	-	200	jq:.user_name == "admin" and (.roles | index("all_access")) != null
+os-single-dashboards-05	L-O2	node	-	demo_admin	GET	/_plugins/_security/authinfo	-	-	401	-
+os-single-dashboards-06	L-O2	node	-	demo_kibanaserver	GET	/_plugins/_security/authinfo	-	-	401	-
+os-single-dashboards-07	L-O2	node	-	demo_readall	GET	/_plugins/_security/authinfo	-	-	401	-
+os-single-dashboards-08	L-O3	node	-	app_user	GET	/_plugins/_security/authinfo	-	-	200	jq:.user_name == "app_x" and (.roles | index("app_writer")) != null
+os-single-dashboards-09	L-M1	node	-	admin	GET	/_nodes/jvm?filter_path=nodes.*.jvm.mem.heap_max_in_bytes	-	-	200	jq:[.nodes[].jvm.mem.heap_max_in_bytes] == [1073741824]
+os-single-dashboards-10	L-C1	node	-	admin	GET	/_nodes/os?filter_path=nodes.*.os.allocated_processors	-	-	200	jq:[.nodes[].os.allocated_processors] == [1]
+os-single-dashboards-11	health	node	-	admin	GET	/_cluster/health	-	-	200	jq:.status != "red"
+os-single-dashboards-12	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	-	@bodies/bulk-own.ndjson	200	jq:.errors == false
+os-single-dashboards-13	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	-	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
+os-single-dashboards-14	L-O3	node	-	app_user	GET	/secret/_search	-	-	403	-
+os-single-dashboards-15	L-O3	node	-	app_user	PUT	/app-b	-	@bodies/index.json	403	-
+os-single-dashboards-16	L-O3	node	-	app_user	DELETE	/app-a	-	-	403	-
+os-single-dashboards-17	L-P1	os	denied	none	GET	/app-a/_search	-	-	abort	-
+os-single-dashboards-18	L-P1	os	denied	app_user	GET	/app-a/_search	-	-	abort	-
+os-single-dashboards-19	L-P2	os	allowed	none	GET	/app-a/_search	-	-	401	-
+os-single-dashboards-20	L-P3	os	allowed	app_user	GET	/app-a/_search	-	-	200	jq:.hits.total.value >= 1
+os-single-dashboards-21	L-P3	os	allowed	app_user	POST	/app-a/_count	-	-	200	jq:.count >= 1
+os-single-dashboards-22	L-P4	os	allowed	admin	GET	/_cluster/settings	-	-	404	-
+os-single-dashboards-23	L-P4	os	allowed	admin	GET	/_cat/indices	-	-	404	-
+os-single-dashboards-24	L-P4	os	allowed	admin	GET	/_nodes	-	-	404	-
+os-single-dashboards-25	L-P4	os	allowed	admin	GET	/_plugins/_security/api/internalusers	-	-	404	-
+os-single-dashboards-26	L-P4	os	allowed	admin	GET	/_plugins/_security/authinfo	-	-	404	-
+os-single-dashboards-27	L-P4	os	allowed	admin	GET	/_opendistro/_security/api/internalusers	-	-	404	-
+os-single-dashboards-28	L-P4	os	allowed	admin	GET	/_snapshot	-	-	404	-
+os-single-dashboards-29	L-P4	os	allowed	admin	POST	/_plugins/_sql	-	-	404	-
+os-single-dashboards-30	L-P5	os	allowed	admin	GET	/%5Fcluster/settings	-	-	404	-
+os-single-dashboards-31	L-P5	os	allowed	admin	GET	/%5fcluster/settings	-	-	404	-
+os-single-dashboards-32	L-P6	os	allowed	admin	GET	/_CLUSTER/settings	-	-	404	-
+os-single-dashboards-33	L-P7	os	allowed	admin	GET	//_cluster/settings	-	-	404	-
+os-single-dashboards-34	L-P7	os	allowed	admin	GET	/./_cluster/settings	-	-	404	-
+os-single-dashboards-35	L-P7	os	allowed	admin	GET	/app-a/../_cluster/settings	-	-	404	-
+os-single-dashboards-36	L-P7	os	allowed	admin	GET	/app-a/%2E%2E/_cluster/settings	-	-	404	-
+os-single-dashboards-37	L-P8	os	allowed	app_user	GET	/app-a,secret/_search	-	-	404	-
+os-single-dashboards-38	L-P8	os	allowed	app_user	GET	/app-a%2Csecret/_search	-	-	404	-
+os-single-dashboards-39	L-P9	os	allowed	app_user	GET	/app-*/_search	-	-	404	-
+os-single-dashboards-40	L-P9	os	allowed	app_user	GET	/app-a%2A/_search	-	-	404	-
+os-single-dashboards-41	L-P9	os	allowed	app_user	GET	/*/_search	-	-	404	-
+os-single-dashboards-42	L-P9	os	allowed	app_user	GET	/_all/_search	-	-	404	-
+os-single-dashboards-43	L-P10	os	allowed	app_user	GET	/%3Capp-%7Bnow%2Fd%7D%3E/_search	-	-	404	-
+os-single-dashboards-44	L-P12	os	allowed	app_user	POST	/app-a/_bulk	-	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
+os-single-dashboards-45	L-P13	os	allowed	app_user	POST	/app-a/_search	-	@bodies/search-script-agg.json	200	jq:.aggregations.by_script != null
+os-single-dashboards-46	L-P14	os	allowed	app_user	POST	/app-a/_bulk	-	bytes:21000000	413	-
+os-single-dashboards-47	L-P15	os	allowed	app_user	POST	/app-a/_search	X-HTTP-Method-Override: DELETE	-	200	jq:.hits != null
+os-single-dashboards-48	L-P15	node	-	admin	GET	/app-a/_count	-	-	200	jq:.count >= 1
+os-single-dashboards-49	L-P17	os	allowed	app_user	POST	/_msearch	-	-	404	-
+os-single-dashboards-50	L-P17	os	allowed	app_user	POST	/app-a/_msearch	-	-	404	-
+os-single-dashboards-51	L-P17	os	allowed	app_user	POST	/app-a/_search/point_in_time	-	-	404	-
+os-single-dashboards-52	L-P17	os	allowed	app_user	POST	/_plugins/_asynchronous_search	-	-	404	-
+os-single-dashboards-53	L-P18	os	allowed	app_user	POST	/_search/scroll	-	-	404	-
+os-single-dashboards-54	L-P19	os	allowed	admin	DELETE	/app-a	-	-	404	-
+os-single-dashboards-55	L-P19	os	allowed	app_user	PUT	/app-a/_doc/1	-	-	404	-
+os-single-dashboards-56	L-P19	os	allowed	app_user	POST	/app-a/_delete_by_query	-	-	404	-
+os-single-dashboards-57	L-P20	os	allowed	none	GET	/	-	-	404	-
+os-single-dashboards-58	L-P3	os	allowed	app_user	GET	/app-a/_search?size=1	-	-	200	jq:.hits.total.value >= 1
+os-single-dashboards-59	L-P7	os	allowed	app_user	GET	/secret/../app-a/_search	-	-	404	-
+os-single-dashboards-60	L-P7	os	allowed	app_user	GET	/_plugins/_security/../app-a/_search	-	-	404	-
+os-single-dashboards-61	L-P7	os	allowed	app_user	GET	//app-a/_search	-	-	404	-
+os-single-dashboards-62	L-P5	os	allowed	app_user	GET	/app-a/%5Fsearch	-	-	404	-
+os-single-dashboards-63	L-O2	node	-	kibanaserver/KIBANASERVER_PASSWORD	GET	/_plugins/_security/authinfo	-	-	200	jq:.user_name == "kibanaserver" and (.roles | index("kibana_server")) != null
+os-single-dashboards-64	L-K2	dashboards	denied	none	GET	/app/login	-	-	abort	-
+os-single-dashboards-65	L-K2	dashboards	allowed	none	GET	/app/login	-	-	200	-
+os-single-dashboards-66	L-K2	dashboards	allowed	none	GET	/api/status	-	-	401	-
+os-single-dashboards-67	L-K2	dashboards	allowed	admin	GET	/api/status	-	-	200	jq:.status != null
+os-single-dashboards-68	L-K2	dashboards	allowed	demo_kibanaserver	GET	/api/status	-	-	401	-
+os-single-dashboards-69	L-K2	dashboards	allowed	app_user	POST	/api/console/proxy?path=_cluster/settings&method=GET	osd-xsrf: true	-	403	-
+os-single-dashboards-70	L-K2	dashboards	allowed	admin	POST	/api/console/proxy?path=_cluster/settings&method=GET	osd-xsrf: true	-	200	jq:.persistent != null

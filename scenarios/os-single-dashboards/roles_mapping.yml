@@ -1,0 +1,22 @@
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+# This file replaces the image's roles_mapping.yml, which maps the demo backend
+# roles (admin, kibanauser, readall, logstash, snapshotrestore).
+all_access:
+  reserved: true
+  users:
+    - "admin"
+  description: "Only the admin user gets full access"
+
+app_writer:
+  reserved: false
+  users:
+    - "app_x"
+
+# kibana_server is a built-in role; the image maps it the same way.
+kibana_server:
+  reserved: true
+  users:
+    - "kibanaserver"

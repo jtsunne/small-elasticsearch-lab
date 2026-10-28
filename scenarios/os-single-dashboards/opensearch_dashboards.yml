@@ -1,0 +1,20 @@
+# Mounted over the image file, which is written for the demo configuration.
+# ${VAR} is replaced from the container environment when Dashboards reads this
+# file, so the secrets stay out of the file and off the command line.
+server.name: osd01
+server.host: "0.0.0.0"
+
+opensearch.hosts: ["https://os01:9200"]
+opensearch.ssl.verificationMode: full
+opensearch.ssl.certificateAuthorities: ["/usr/share/opensearch-dashboards/config/root-ca.pem"]
+opensearch.username: kibanaserver
+opensearch.password: ${KIBANASERVER_PASSWORD}
+opensearch.requestHeadersAllowlist: [authorization, securitytenant]
+
+opensearch_security.multitenancy.enabled: false
+# Browsers reach Dashboards over HTTPS through Caddy, even though Caddy talks
+# to it over plain HTTP.
+opensearch_security.cookie.secure: true
+# The default is a fixed string in the plugin source, so every install that
+# keeps it encrypts session cookies with a publicly known password.
+opensearch_security.cookie.password: ${DASHBOARDS_COOKIE_SECRET}

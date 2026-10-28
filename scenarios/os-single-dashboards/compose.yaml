@@ -1,0 +1,121 @@
+name: os-single-dashboards
+
+# Run through the Makefile (make up SCENARIO=os-single-dashboards), which passes
+# versions.env and .env. Certificates and security/internal_users.yml must exist
+# first: certs/gen-certs.sh, then init-security.sh. See README.md.
+
+x-file: &file
+  type: bind
+  read_only: true
+  bind:
+    # Fail instead of letting Docker create an empty directory when a
+    # certificate or the rendered users file has not been generated yet.
+    create_host_path: false
+
+services:
+  os01:
+    image: ${OPENSEARCH_IMAGE:?OPENSEARCH_IMAGE comes from versions.env}
+    hostname: os01
+    cpus: 1
+    mem_limit: 2g
+    environment:
+      # OpenSearch does not size the heap from the container limit; without
+      # this it starts with the 1g from its jvm.options whatever mem_limit is.
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      # A second JVM next to the node, started by the image entrypoint, that
+      # would take memory from the same 2g limit.
+      DISABLE_PERFORMANCE_ANALYZER_AGENT_CLI: "true"
+      plugins.security.ssl.http.enabled: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - os01-data:/usr/share/opensearch/data
+      - { <<: *file, source: ./opensearch.yml, target: /usr/share/opensearch/config/opensearch.yml }
+      - { <<: *file, source: ./certs/root-ca.pem, target: /usr/share/opensearch/config/root-ca.pem }
+      - { <<: *file, source: ./certs/os01.pem, target: /usr/share/opensearch/config/os01.pem }
+      - { <<: *file, source: ./certs/os01-key.pem, target: /usr/share/opensearch/config/os01-key.pem }
+      - { <<: *file, source: ./certs/admin.pem, target: /usr/share/opensearch/config/admin.pem }
+      - { <<: *file, source: ./certs/admin-key.pem, target: /usr/share/opensearch/config/admin-key.pem }
+      - { <<: *file, source: ./security/internal_users.yml, target: /usr/share/opensearch/config/opensearch-security/internal_users.yml }
+      - { <<: *file, source: ./roles.yml, target: /usr/share/opensearch/config/opensearch-security/roles.yml }
+      - { <<: *file, source: ./roles_mapping.yml, target: /usr/share/opensearch/config/opensearch-security/roles_mapping.yml }
+    healthcheck:
+      # 401 without credentials means the REST layer is up and the security
+      # index is initialized; an uninitialized plugin answers 503. No password
+      # is needed inside the container for this.
+      test:
+        - CMD-SHELL
+        - >-
+          test "$$(curl -s -o /dev/null -w '%{http_code}' --cacert config/root-ca.pem
+          --resolve os01:9200:127.0.0.1 https://os01:9200/)" = 401
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - backend
+
+  osd01:
+    image: ${OPENSEARCH_DASHBOARDS_IMAGE:?OPENSEARCH_DASHBOARDS_IMAGE comes from versions.env}
+    hostname: osd01
+    cpus: 1
+    mem_limit: 1g
+    depends_on:
+      os01:
+        condition: service_healthy
+    environment:
+      KIBANASERVER_PASSWORD: ${KIBANASERVER_PASSWORD:?set KIBANASERVER_PASSWORD in .env}
+      DASHBOARDS_COOKIE_SECRET: ${DASHBOARDS_COOKIE_SECRET:?set DASHBOARDS_COOKIE_SECRET in .env}
+      # An explicit V8 heap below mem_limit, so that Node.js does not size it
+      # from host memory and the container is not OOM-killed first.
+      NODE_OPTIONS: --max-old-space-size=640
+    volumes:
+      - { <<: *file, source: ./opensearch_dashboards.yml, target: /usr/share/opensearch-dashboards/config/opensearch_dashboards.yml }
+      - { <<: *file, source: ./certs/root-ca.pem, target: /usr/share/opensearch-dashboards/config/root-ca.pem }
+    healthcheck:
+      # 200 or 401 means the server is up; it answers 503 while it starts.
+      test:
+        - CMD-SHELL
+        - >-
+          code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5601/api/status);
+          test "$$code" = 200 || test "$$code" = 401
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    networks:
+      - backend
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE comes from versions.env}
+    depends_on:
+      os01:
+        condition: service_healthy
+      osd01:
+        condition: service_started
+    environment:
+      OS_SITE_ADDRESS: ${OS_SITE_ADDRESS:?set OS_SITE_ADDRESS in .env}
+      DASHBOARDS_SITE_ADDRESS: ${DASHBOARDS_SITE_ADDRESS:?set DASHBOARDS_SITE_ADDRESS in .env}
+      ALLOWED_CIDRS: ${ALLOWED_CIDRS:?set ALLOWED_CIDRS in .env}
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - { <<: *file, source: ./Caddyfile, target: /etc/caddy/Caddyfile }
+      - { <<: *file, source: ./certs/root-ca.pem, target: /etc/caddy/os-root-ca.pem }
+      - caddy-data:/data
+    networks:
+      - backend
+
+volumes:
+  os01-data:
+  caddy-data:
+
+networks:
+  backend:

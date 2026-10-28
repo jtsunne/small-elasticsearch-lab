@@ -1,0 +1,25 @@
+cluster.name: os-single-dashboards
+node.name: os01
+network.host: 0.0.0.0
+discovery.type: single-node
+bootstrap.memory_lock: true
+
+plugins.security.ssl.transport.pemcert_filepath: os01.pem
+plugins.security.ssl.transport.pemkey_filepath: os01-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+
+# plugins.security.ssl.http.enabled is set in compose.yaml, not here, so that
+# compose.bench.yaml can switch it off with a plain environment override.
+plugins.security.ssl.http.pemcert_filepath: os01.pem
+plugins.security.ssl.http.pemkey_filepath: os01-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
+
+# Without the demo installer nothing creates the security index. This makes the
+# plugin create it on first start from the files mounted into
+# config/opensearch-security/; later changes need init-security.sh --apply.
+plugins.security.allow_default_init_securityindex: true
+
+plugins.security.nodes_dn:
+  - 'CN=os01,OU=lab,O=small-elasticsearch-lab'
+plugins.security.authcz.admin_dn:
+  - 'CN=admin,OU=lab,O=small-elasticsearch-lab'
