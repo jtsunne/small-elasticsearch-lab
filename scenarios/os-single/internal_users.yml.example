@@ -1,0 +1,17 @@
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# Template for security/internal_users.yml, which init-security.sh renders by
+# replacing each @@<NAME>_HASH@@ with a bcrypt hash of the <NAME>_PASSWORD in .env.
+# The rendered file replaces the image's internal_users.yml, which ships the
+# demo users (admin, kibanaserver, readall, ...) with publicly known hashes.
+admin:
+  hash: "@@ADMIN_HASH@@"
+  reserved: true
+  description: "Cluster administrator, for operators only"
+
+app_x:
+  hash: "@@APP_HASH@@"
+  reserved: false
+  description: "Application user, mapped to app_writer"

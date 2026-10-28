@@ -1,0 +1,65 @@
+# Requires Caddy 2.11.1 or later (CVE-2026-27587). The {$VAR:default} values let
+# the same file run in compose, in CI validation and in the proxy-only test
+# harness; compose always sets OS_SITE_ADDRESS and ALLOWED_CIDRS.
+{
+	admin {$CADDY_ADMIN:localhost:2019}
+	servers {
+		protocols h1 h2
+	}
+}
+
+# import os_upstream <matcher>
+(os_upstream) {
+	reverse_proxy {args[0]} {$OS_UPSTREAM:https://os01:9200} {
+		# Not access control; dropping it only keeps the upstream request equal
+		# to what the method matcher saw.
+		header_up -X-HTTP-Method-Override
+		# The node serves HTTPS because securityadmin.sh needs it. Caddy verifies
+		# it against the lab CA; the server name defaults to the upstream host,
+		# os01, which is in the node certificate SAN.
+		transport http {
+			tls_trust_pool file {$OS_CA_FILE:/etc/caddy/os-root-ca.pem}
+		}
+	}
+}
+
+{$OS_SITE_ADDRESS:os.localhost} {
+	log
+
+	# route keeps the written order. Without it Caddy sorts directives and runs
+	# handle and reverse_proxy before abort, so the IP allowlist would not
+	# protect the proxied paths.
+	route {
+		# remote_ip is the immediate TCP peer. Behind another proxy or Docker's
+		# userland proxy that is not the client, and this check means nothing.
+		@outside not remote_ip {$ALLOWED_CIDRS:127.0.0.1/32}
+		abort @outside
+
+		request_body {
+			max_size 20MB
+		}
+
+		# Matched against the raw request URI, because reverse_proxy forwards the
+		# raw path: path and path_regexp see a decoded, dot-cleaned path, so
+		# /_plugins/_security/../app-a/_search would match them and still reach
+		# the node as written. Any encoding, dot segment, double slash, upper
+		# case, comma, wildcard, date math or remote-cluster prefix fails the
+		# pattern and gets the 404 below, as do _plugins/_security and the
+		# legacy _opendistro/_security paths.
+		# This allowlist is a speed bump: a _bulk body can still name any index,
+		# and only the OpenSearch role decides what the caller may touch.
+		@app_read {
+			method GET POST
+			expression `{http.request.uri}.matches("^/app-[a-z0-9][a-z0-9-]*/_(search|count)([?].*)?$")`
+		}
+		@app_write {
+			method POST PUT
+			expression `{http.request.uri}.matches("^/app-[a-z0-9][a-z0-9-]*/_bulk([?].*)?$")`
+		}
+
+		import os_upstream @app_read
+		import os_upstream @app_write
+
+		respond 404
+	}
+}
