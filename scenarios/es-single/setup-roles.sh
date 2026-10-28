@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Creates the index template, the test indices, the app_writer role and the
-# app_x user, then lets app_x create its own expiring, scoped API key.
+# app_x user, then creates an expiring, scoped API key for the application as
+# elastic. Run it again to rotate: it creates a new key, see README.md.
 #
 # Usage: setup-roles.sh [--key-out FILE]
 #
@@ -17,7 +18,7 @@ key_out=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--key-out) key_out="${2:?--key-out needs a file}"; shift 2 ;;
-	-h | --help) sed -n '2,5p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,6p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 done
@@ -51,16 +52,14 @@ curl -sS -w "\n%{http_code}" -X "$1" -H "Content-Type: application/json" \
 	--data-binary @- -K <(printf "user = \"%s:%s\"\n" "$3" "$pass") \
 	"http://127.0.0.1:9200$2"'
 
-# es METHOD PATH [USER] < body; prints the response body, then the status on
-# its own line.
+# es METHOD PATH < body; runs as elastic, prints the response body, then the
+# status on its own line.
 es() {
-	local method=$1 path=$2 user=${3:-elastic} pass
-	if [ "$user" = elastic ]; then pass=$ELASTIC_PASSWORD; else pass=$APP_PASSWORD; fi
-	{ printf '%s\n' "$pass"; cat; } |
-		"${compose[@]}" exec -T es01 bash -c "$remote" _ "$method" "$path" "$user"
+	{ printf '%s\n' "$ELASTIC_PASSWORD"; cat; } |
+		"${compose[@]}" exec -T es01 bash -c "$remote" _ "$1" "$2" elastic
 }
 
-# es_ok METHOD PATH [USER] < body; prints the body, fails unless 2xx.
+# es_ok METHOD PATH < body; prints the body, fails unless 2xx.
 es_ok() {
 	local res status body
 	res=$(es "$@")
@@ -94,7 +93,6 @@ JSON
 
 es_ok PUT /_security/role/app_writer >/dev/null <<'JSON'
 {
-  "cluster": ["manage_own_api_key"],
   "indices": [
     {"names": ["app-*"], "privileges": ["read", "create_doc"]}
   ]
@@ -113,9 +111,9 @@ echo '{"message": "seed", "@timestamp": "2026-01-01T00:00:00Z"}' |
 echo '{"message": "not for app-x", "@timestamp": "2026-01-01T00:00:00Z"}' |
 	es_ok PUT '/secret/_doc/1?refresh=true' >/dev/null
 
-# Without role_descriptors the key would carry every privilege of its owner;
-# with them it gets the intersection. Keys never expire unless told to.
-key=$(es_ok POST /_security/api_key app_x <<'JSON' | jq -er .encoded
+# The key is owned by elastic, so role_descriptors is its only limit: without
+# them it would be a superuser key. Keys never expire unless told to.
+key=$(es_ok POST /_security/api_key <<'JSON' | jq -er .encoded
 {
   "name": "app-x-key",
   "expiration": "30d",
@@ -132,8 +130,8 @@ JSON
 
 if [ -n "$key_out" ]; then
 	(umask 077 && printf 'APP_API_KEY=%s\n' "$key" >"$key_out")
-	echo "role app_writer, user app_x and an API key (30 days) created; key written to $key_out"
+	echo "role app_writer, user app_x and an app API key (30 days, owned by elastic) created; key written to $key_out"
 else
-	echo "role app_writer, user app_x and an API key (30 days) created" >&2
+	echo "role app_writer, user app_x and an app API key (30 days, owned by elastic) created" >&2
 	printf 'APP_API_KEY=%s\n' "$key"
 fi

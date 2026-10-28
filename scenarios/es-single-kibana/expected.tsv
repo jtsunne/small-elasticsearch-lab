@@ -83,3 +83,8 @@ es-single-kibana-81	L-K2	kibana	allowed	none	GET	/api/status	-	-	200	contains:av
 es-single-kibana-82	L-K2	kibana	allowed	none	GET	/login	-	-	200	-
 es-single-kibana-83	L-K3	kibana	allowed	elastic	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true	-	200	contains:persistent
 es-single-kibana-84	L-K3	kibana	allowed	app_user	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true	-	403|401	!contains:persistent
+es-single-kibana-85	L-M1	node	-	elastic	GET	/_nodes/jvm?filter_path=nodes.*.jvm.input_arguments,nodes.*.jvm.mem.heap_max_in_bytes	-	-	200	record
+es-single-kibana-86	L-P4	node	-	app_user	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"minted-by-app"}	403	contains:security_exception
+es-single-kibana-87	L-P4	node	-	app_key	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"derived-from-key"}	403	contains:security_exception
+es-single-kibana-88	L-P3	node	-	app_key	GET	/_security/_authenticate	-	-	200	jq:(.authentication_type == "api_key") and (.api_key.name == "app-x-key") and (.username == "elastic")
+es-single-kibana-89	L-P3	node	-	elastic	GET	/_security/api_key?name=app-x-key&active_only=true	-	-	200	jq:(.api_keys | length >= 1) and all(.api_keys[]; (.expiration != null) and (.role_descriptors | keys == ["app_x_key"]))

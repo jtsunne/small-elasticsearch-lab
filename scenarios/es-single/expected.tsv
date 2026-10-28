@@ -76,3 +76,8 @@ es-single-74	L-P19	es	allowed	app_key	PUT	/app-a/_doc/1	Content-Type: applicatio
 es-single-75	L-P19	es	allowed	app_key	GET	/app-a/_bulk	-	-	404	-
 es-single-76	L-P19	es	allowed	app_key	GET	/app-a/_doc/seed	-	-	404	-
 es-single-77	L-P20	es	allowed	none	GET	/	-	-	404	!contains:cluster_uuid
+es-single-78	L-M1	node	-	elastic	GET	/_nodes/jvm?filter_path=nodes.*.jvm.input_arguments,nodes.*.jvm.mem.heap_max_in_bytes	-	-	200	record
+es-single-79	L-P4	node	-	app_user	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"minted-by-app"}	403	contains:security_exception
+es-single-80	L-P4	node	-	app_key	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"derived-from-key"}	403	contains:security_exception
+es-single-81	L-P3	node	-	app_key	GET	/_security/_authenticate	-	-	200	jq:(.authentication_type == "api_key") and (.api_key.name == "app-x-key") and (.username == "elastic")
+es-single-82	L-P3	node	-	elastic	GET	/_security/api_key?name=app-x-key&active_only=true	-	-	200	jq:(.api_keys | length >= 1) and all(.api_keys[]; (.expiration != null) and (.role_descriptors | keys == ["app_x_key"]))

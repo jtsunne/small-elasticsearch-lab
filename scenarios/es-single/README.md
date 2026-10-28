@@ -1,6 +1,6 @@
 # es-single
 
-One Elasticsearch 9.5.5 node with authentication on, no node certificates and no published ports, behind Caddy. Caddy terminates TLS and applies an IP allowlist, a path and method allowlist and a body size limit. Applications get a scoped role and an expiring, scoped API key.
+One Elasticsearch 9.5.5 node with authentication on, no node certificates and no published ports, behind Caddy. Caddy terminates TLS and applies an IP allowlist, a path and method allowlist and a body size limit. Applications get a scoped role and an expiring, scoped API key that `elastic` creates at setup.
 
 **Tested on: NOT YET TESTED.** The files pass static checks only: `docker compose config`, `caddy validate`, `bash -n`, a proxy-only run of the Caddyfile against an echo upstream, and `setup-roles.sh` against a fake node. Nothing here has run against a real Elasticsearch yet. Every expectation in `expected.tsv` was written before the lab run and may be wrong.
 
@@ -12,7 +12,7 @@ One Elasticsearch 9.5.5 node with authentication on, no node certificates and no
 | `Caddyfile` | TLS, IP allowlist, path and method allowlist, 20 MB body limit |
 | `.env.example` | every variable compose needs; copy it or run `init-env.sh` |
 | `init-env.sh` | writes `.env` with random alphanumeric passwords, mode 600 |
-| `setup-roles.sh` | index template, test indices, role `app_writer`, user `app_x`, API key |
+| `setup-roles.sh` | index template, test indices, role `app_writer`, user `app_x`, and the app API key, all created as `elastic` |
 | `expected.tsv` | the checks the lab runner executes, format below |
 | `bodies/` | request bodies referenced from `expected.tsv` |
 | `compose.bench.yaml` | benchmark override: node on `127.0.0.1:9200`, data under `$BENCH_DATA_DIR`, no Caddy |
@@ -46,15 +46,78 @@ For benchmarks, `bench/run.sh` adds `compose.bench.yaml`. The bind-mounted data 
 | `discovery.type=single-node` | one node; also the reason bootstrap checks are not enforced and transport TLS can stay off | https://www.elastic.co/docs/deploy-manage/deploy/self-managed/bootstrap-checks |
 | `xpack.security.enabled=true`, `http.ssl` and `transport.ssl` false | authentication on. TLS is terminated by Caddy; Caddy-to-node traffic stays on the host-local bridge. Setting any `xpack.security.*` turns off security auto-configuration, which is intended | https://www.elastic.co/docs/deploy-manage/security/set-up-minimal-security , https://www.elastic.co/docs/deploy-manage/security/secure-cluster-communications |
 | Settings as environment variables by their dotted names | the image accepts the setting name as the variable name | https://www.elastic.co/docs/deploy-manage/deploy/self-managed/install-elasticsearch-docker-configure |
-| `ES_JAVA_OPTS=-Xms1g -Xmx1g` | equals what auto-sizing picks for 2 GiB; set so the OpenSearch scenarios, which do not auto-size, run the same heap. Elastic: "The ES_JAVA_OPTS variable overrides all other JVM options. We do not recommend using ES_JAVA_OPTS in production." In production keep the default sizing or use a file in `jvm.options.d/`. `ES_HEAP_OPTS=` (empty) in `.env` restores auto-sizing for L-M1 | https://www.elastic.co/docs/deploy-manage/deploy/self-managed/install-elasticsearch-docker-prod |
+| `ES_JAVA_OPTS=-Xms1g -Xmx1g` | equals what auto-sizing picks for 2 GiB; set so the OpenSearch scenarios, which do not auto-size, run the same heap. Elastic: "The ES_JAVA_OPTS variable overrides all other JVM options. We do not recommend using ES_JAVA_OPTS in production." In production keep the default sizing or use a file in `jvm.options.d/`. `ES_HEAP_OPTS=` (empty) in `.env` restores auto-sizing; L-M1 runs in both modes, see "Heap modes" | https://www.elastic.co/docs/deploy-manage/deploy/self-managed/install-elasticsearch-docker-prod |
 | `bootstrap.memory_lock=true` with `memlock: -1` | one of the documented ways to keep the heap out of swap | same page, "Disable swapping" |
 | `nofile 65535` | the documented ulimit for open files | same page |
 | `vm.max_map_count=1048576` | host kernel setting, cannot be set per container | same page |
 | No `node.processors` | Elastic says processors are detected and that `node.processors` helps under a cgroup quota, but not that the quota is read; L-C1 decides whether it must be set | https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/thread-pool-settings |
 | Healthcheck greps for `missing authentication credentials` | as in the official compose file; needs no password | https://github.com/elastic/elasticsearch/blob/main/docs/reference/setup/install/docker/docker-compose.yml |
-| Role `app_writer`: `read` and `create_doc` on `app-*`, cluster `manage_own_api_key` | `create_doc` allows new documents only (bulk `create`, or `index` with an auto-generated id) and never overwrites; `manage_own_api_key` is the minimum for creating an API key | https://www.elastic.co/docs/reference/elasticsearch/security-privileges , https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key |
-| API key with `expiration` and `role_descriptors` | keys never expire by default; a key's privileges are the intersection of its `role_descriptors` and its owner's privileges. A key created by `elastic` without `role_descriptors` is a superuser key, so the app user creates its own | create API key page above |
+| Role `app_writer`: `read` and `create_doc` on `app-*`, no cluster privileges | `create_doc` allows new documents only (bulk `create`, or `index` with an auto-generated id) and never overwrites. Without `manage_own_api_key` the app user cannot create API keys | https://www.elastic.co/docs/reference/elasticsearch/security-privileges |
+| App API key created by `elastic` with `expiration` and `role_descriptors` | see "The application API key" below | https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key |
 | Index template `app`: 1 shard, 0 replicas | one node cannot host a replica; with the default of 1 replica every `app-*` index stays yellow | https://www.elastic.co/docs/reference/elasticsearch/index-settings/index-modules |
+
+## Heap modes (L-M1)
+
+L-M1 runs twice, once per mode, with the same `expected.tsv`. The mode is chosen by `ES_HEAP_OPTS` in `.env`, which compose substitutes into `ES_JAVA_OPTS`:
+
+| Mode | `.env` | `ES_JAVA_OPTS` in the container | Rows | Expected (HYPOTHESIS, not a result) |
+|---|---|---|---|---|
+| explicit (default) | no `ES_HEAP_OPTS` line, or the line commented out as in `.env.example` | `-Xms1g -Xmx1g` | `L-M1`: heap max assertion and the recorded `_nodes/jvm` arguments | heap max 1073741824 bytes; the recorded `input_arguments` contain `-Xms1g` and `-Xmx1g` |
+| auto-sizing | `ES_HEAP_OPTS=` (empty value) | empty | the same `L-M1` rows | heap max 1073741824 bytes as well, with no `-Xmx1g` among the recorded arguments: Elasticsearch counts container memory as available memory, and its sizing code gives a data node half of it from 1 GiB up, so 2 GiB gives 1 GiB |
+
+All other rows run in the explicit mode; they do not depend on the heap mode, and running them again in auto mode is harmless. A variable named `ES_HEAP_OPTS` in the shell that runs `make` or `tests/run-scenario.sh` overrides `.env`, so unset it before the explicit run. `make test` creates the containers and removes them with their volumes afterwards, so each run starts with the heap mode in `.env` at that moment; with `make up`, run `make down` before switching, because `ES_JAVA_OPTS` is read only when the container is created.
+
+```sh
+make test SCENARIO=es-single                                  # explicit mode
+echo 'ES_HEAP_OPTS=' >> scenarios/es-single/.env              # switch to auto-sizing
+make test SCENARIO=es-single                                  # auto mode
+sed -i '/^ES_HEAP_OPTS=/d' scenarios/es-single/.env           # back to explicit
+```
+
+The auto-mode expectation rests on two sources, neither a measurement: the JVM settings page says "the total memory available to Elasticsearch means the amount of memory available within the container" (https://www.elastic.co/docs/reference/elasticsearch/jvm-settings), and `MachineDependentHeap.java` on the `main` branch gives a data node 50% of available memory at 1 GiB and above, 40% below (https://github.com/elastic/elasticsearch/blob/main/distribution/tools/server-cli/src/main/java/org/elasticsearch/server/cli/MachineDependentHeap.java). The 9.5 branch was not checked. If the auto run reports anything other than 1073741824, the row fails and the recorded body is the result to write up, not a bug in the row.
+
+## The application API key
+
+`setup-roles.sh` creates the key as `elastic`, in the same step that creates the role and the user. The exact request:
+
+```json
+POST /_security/api_key
+{
+  "name": "app-x-key",
+  "expiration": "30d",
+  "role_descriptors": {
+    "app_x_key": {
+      "indices": [
+        {"names": ["app-*"], "privileges": ["read", "create_doc"]}
+      ]
+    }
+  }
+}
+```
+
+The response's `encoded` field is the value for `Authorization: ApiKey <encoded>`; `setup-roles.sh` prints it as `APP_API_KEY=...` or writes it with `--key-out FILE` (mode 600). The `elastic` password reaches curl inside `es01` on stdin and through a curl config read from a pipe, never through argv, and is used only by this script.
+
+What the create API key page says, and why it shapes the request (https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key):
+
+- "By default, API keys never expire." Hence `expiration`.
+- With `role_descriptors` "the resultant permissions are an intersection of API keys permissions and the authenticated user's permissions"; without them the key gets "a point in time snapshot of permissions" of its creator. The creator here is `elastic`, so the `role_descriptors` are the key's only limit. Never send this request without them: the result would be a superuser key.
+- The app key has no cluster privileges, so it cannot create keys either (row `L-P4`); even a key that could would get one without privileges: "the derived API key cannot have any privileges".
+
+The trade-off against the app user creating its own key:
+
+- A leaked app password can no longer mint keys. `app_writer` has no cluster privileges, so `POST /_security/api_key` as `app_x` gets 403 (row `L-P4`, node).
+- The key is scoped to `read` and `create_doc` on `app-*` and expires after 30 days.
+- `elastic` is needed only for setup and rotation. The key's owner is `elastic`, so `GET /_security/api_key` and the invalidate API as `app_x` do not see or touch it; whoever rotates it needs `elastic` or a user with `manage_api_key`.
+- The cost: the key's owner is a superuser, so a mistake in `role_descriptors` (an empty object, a typo in the index pattern that widens it) is not caught by a narrower owner role. Rows `L-P3` (node) check that the stored key carries exactly the `app_x_key` descriptor and an expiration, and `L-P4` rows check what the key cannot do.
+
+Rotation: run `setup-roles.sh --key-out FILE` again. It creates a new key with the same name and leaves the role, user and indices as they are. The old key stays valid until it expires; to end it at once, invalidate it as `elastic` by id (from `GET /_security/api_key?name=app-x-key`):
+
+```json
+DELETE /_security/api_key
+{"ids": ["<old key id>"]}
+```
+
+Source: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-invalidate-api-key ; a user with only `manage_own_api_key` could invalidate only keys it owns, and `app_x` owns none.
 
 ## Caddy, and what it does not do
 
@@ -72,11 +135,11 @@ For benchmarks, `bench/run.sh` adds `compose.bench.yaml`. The bind-mounted data 
 
 | Lab test | Rows in `expected.tsv` | Note |
 |---|---|---|
-| L-M1 heap 1 GiB | `L-M1` | as configured this checks the explicit heap; run once with `ES_HEAP_OPTS=` to check auto-sizing |
+| L-M1 heap 1 GiB | `L-M1` | run in both heap modes, see "Heap modes (L-M1)" |
 | L-C1 processors and thread pools | `L-C1` | expected 1, write 1, search 2; if it fails, set `node.processors=1` and record it |
 | L-S1 system shards | `L-S1` | recorded, not asserted |
 | L-N1 port 9200 not published | `L-N1` | the ufw variant of L-N1 is manual and not in this file |
-| L-P1 to L-P10, L-P12 to L-P20 | `L-P*` | L-P11 (raw or decoded path upstream) belongs to the proxy-only harness in `tests/`; the run above showed Caddy forwards the raw path |
+| L-P1 to L-P10, L-P12 to L-P20 | `L-P*` | `L-P3` and `L-P4` include the API key rows: the app user cannot create a key, the key cannot create one either, the key authenticates as an API key owned by `elastic`, and the stored key has an expiration and only the `app_x_key` descriptor. L-P11 (raw or decoded path upstream) belongs to the proxy-only harness in `tests/`; the run above showed Caddy forwards the raw path |
 | L-M2, L-M3, L-W1, L-W2, L-B* | none | `bad-heap`, benchmark runs and the watermark procedure |
 
 Rows with site `node` go straight to `es01:9200` on the compose network, bypassing Caddy, to show which layer stops a request: `GET /_cluster/settings` with the app key gets 404 from Caddy and 403 from the node.
@@ -85,6 +148,8 @@ Expectations that are hypotheses, not documented behaviour:
 
 - `_nodes/os` reports `allocated_processors` 1 under `cpus: 1` (plan 0.1 item 7).
 - A bulk `create` into `app-new`, which matches `app-*` but does not exist, gets 403, because `create_doc` does not include index creation (`create_index` or `auto_configure` would).
+- `GET /_security/_authenticate` with the app key returns `authentication_type` `api_key`, `api_key.name` `app-x-key` and `username` `elastic` (the owner). The response schema lists these fields; their values for API key authentication are FROM TRAINING.
+- Creating an API key as `app_x`, or with the app key, gets 403 with `security_exception`.
 - The absolute-form request `GET http://es01:9200/_cluster/settings` does not reach the node. Caddy may answer 400, 404, 421 or 200, as long as no cluster settings come back; the proxy-only run returned an empty 200 because the host does not match the site.
 
 ## expected.tsv format
@@ -109,4 +174,4 @@ Tab-separated, one header line, one check per line, no empty fields (`-` means n
 
 Covers: the node is reachable only through Caddy; only listed client addresses reach Caddy's routes; requests without valid credentials get 401; an app key can read and add documents in `app-*` and nothing else: no overwrite, no delete, no other index, no cluster settings, no security APIs; keys expire.
 
-Does not cover: a leaked app key or password within its own scope (it reads all of `app-*` and adds documents until it expires, and the app user can mint new keys of the same scope); expensive queries; anything running on the host; Kibana users (see `es-single-kibana`); traffic between Caddy and the node, which is plaintext on the Docker bridge.
+Does not cover: a leaked app key or password within its own scope (it reads all of `app-*` and adds documents until it expires; the app password alone cannot mint keys); expensive queries; anything running on the host; Kibana users (see `es-single-kibana`); traffic between Caddy and the node, which is plaintext on the Docker bridge.

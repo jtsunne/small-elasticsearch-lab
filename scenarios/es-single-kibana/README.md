@@ -28,6 +28,38 @@ make down SCENARIO=es-single-kibana
 
 Kibana is at `https://kibana.localhost:8443`, log in as `elastic` for the lab. Set `KIBANA_MEM_LIMIT=2g` before using alerting.
 
+## Heap modes (L-M1)
+
+Same as `es-single`: L-M1 runs twice with the same `expected.tsv`, and the mode comes from `ES_HEAP_OPTS` in this directory's `.env`. Kibana's memory is unaffected.
+
+| Mode | `.env` | `ES_JAVA_OPTS` | Rows | Expected (HYPOTHESIS, not a result) |
+|---|---|---|---|---|
+| explicit (default) | no `ES_HEAP_OPTS` line, or commented out | `-Xms1g -Xmx1g` | `L-M1` | heap max 1073741824 bytes; recorded `input_arguments` contain `-Xmx1g` |
+| auto-sizing | `ES_HEAP_OPTS=` (empty value) | empty | the same `L-M1` rows | heap max 1073741824 bytes, half of the 2 GiB container, with no `-Xmx1g` recorded |
+
+All other rows run in the explicit mode. Switch by adding or deleting the `ES_HEAP_OPTS=` line before `make test SCENARIO=es-single-kibana`; an `ES_HEAP_OPTS` variable in the shell overrides `.env`. The sources and the reasoning behind the auto-mode expectation are in `../es-single/README.md`, "Heap modes (L-M1)".
+
+## The application API key
+
+`setup-roles.sh` is identical to the one in `es-single`. It creates the app key as `elastic`, with an expiration and `role_descriptors`; `app_writer` has no cluster privileges, so `app_x` cannot create keys. The exact request:
+
+```json
+POST /_security/api_key
+{
+  "name": "app-x-key",
+  "expiration": "30d",
+  "role_descriptors": {
+    "app_x_key": {
+      "indices": [
+        {"names": ["app-*"], "privileges": ["read", "create_doc"]}
+      ]
+    }
+  }
+}
+```
+
+Trade-off: a leaked app password can no longer mint keys; the key is scoped to `read` and `create_doc` on `app-*` and expires after 30 days; `elastic` is needed only for setup and rotation (run `setup-roles.sh` again, then invalidate the old key with `DELETE /_security/api_key` and `{"ids": ["<old key id>"]}`). Because the owner is a superuser, `role_descriptors` are the key's only limit, and the `L-P3` and `L-P4` node rows check them. Source: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key ; details in `../es-single/README.md`, "The application API key".
+
 ## Things to know
 
 - **Kibana bypasses the Elasticsearch path allowlist.** Anyone who can log in to Kibana has a full Elasticsearch client in Dev Tools (`/api/console/proxy`), limited only by their own Elasticsearch roles. Row `L-K3` in `expected.tsv` shows `_cluster/settings` through Kibana as `elastic` (expected 200) and as `app_x` (expected 401 or 403). Give Kibana users roles as narrow as API keys, and keep `elastic` for setup.
@@ -45,7 +77,7 @@ Kibana is at `https://kibana.localhost:8443`, log in as `elastic` for the lab. S
 
 ## What this scenario covers
 
-Everything `es-single` covers (the same `L-*` rows, run against this stack), plus:
+Everything `es-single` covers (the same `L-*` rows, including the API key rows and both heap modes of L-M1, run against this stack), plus:
 
 | Lab test | Rows | Note |
 |---|---|---|
