@@ -39,9 +39,15 @@ jobs:
           . ./versions.env
           files=(scenarios/*/Caddyfile tests/*/Caddyfile*)
           if [ ${#files[@]} -eq 0 ]; then echo "no Caddyfiles yet"; exit 0; fi
+          # The os-* Caddyfiles verify the node with tls_trust_pool, and Caddy
+          # reads that file during validate; any CA certificate will do.
+          mkdir -p "$RUNNER_TEMP/ca"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=ci-validate \
+            -keyout "$RUNNER_TEMP/ci-validate-key.pem" -out "$RUNNER_TEMP/ca/root-ca.pem"
           for f in "${files[@]}"; do
             echo "validating $f"
-            docker run --rm -v "$PWD/$(dirname "$f"):/cfg:ro" "$CADDY_IMAGE" \
+            docker run --rm -v "$PWD/$(dirname "$f"):/cfg:ro" -v "$RUNNER_TEMP/ca:/ca:ro" \
+              -e OS_CA_FILE=/ca/root-ca.pem "$CADDY_IMAGE" \
               caddy validate --adapter caddyfile --config "/cfg/$(basename "$f")"
           done
 
@@ -58,16 +64,74 @@ jobs:
 
   go:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [bench/loader, tests/echo-upstream]
     defaults:
       run:
-        working-directory: bench/loader
+        working-directory: ${{ matrix.module }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: bench/loader/go.mod
+          go-version-file: ${{ matrix.module }}/go.mod
       - run: go vet ./...
       - run: go test -race ./...
+
+  proxy-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tests/echo-upstream/go.mod
+      - name: build caddy and the echo upstream
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          . ./versions.env
+          bin="$RUNNER_TEMP/bin"
+          GOBIN="$bin" go install "github.com/caddyserver/caddy/v2/cmd/caddy@v${CADDY_VERSION}"
+          (cd tests/echo-upstream && go build -o "$bin/echo-upstream" .)
+          go version -m "$bin/caddy" | grep -E "^[[:space:]]+mod[[:space:]]+github.com/caddyserver/caddy/v2[[:space:]]+v${CADDY_VERSION}[[:space:]]"
+          echo "CADDY=$bin/caddy" >>"$GITHUB_ENV"
+          echo "ECHO_UPSTREAM=$bin/echo-upstream" >>"$GITHUB_ENV"
+      - name: tests/selftest.sh
+        run: tests/selftest.sh
+      - name: proxy-only matrix
+        run: |
+          set -euo pipefail
+          tap="$RUNNER_TEMP/matrix.tap"
+          failed=0
+          # check_exit WANT_EXIT RUNNER_ARGS...: the known-bad fixtures must fail
+          # with exit 1 (a test failed), not 2 (the runner itself broke).
+          check_exit() {
+            local want=$1 rc=0
+            shift
+            echo "== tests/run-proxy-matrix.sh $* (want exit $want)"
+            tests/run-proxy-matrix.sh "$@" >"$tap" 2>&1 || rc=$?
+            grep '^not ok' "$tap" || true
+            tail -n 3 "$tap"
+            if [ "$rc" -ne "$want" ]; then
+              cat "$tap"
+              echo "::error::run-proxy-matrix.sh $* exited $rc, expected $want"
+              return 1
+            fi
+          }
+          check_exit 0 --engine es tests/fixtures/Caddyfile.fixed || failed=1
+          check_exit 0 --engine os tests/fixtures/Caddyfile.fixed || failed=1
+          check_exit 1 --engine es tests/fixtures/Caddyfile.broken || failed=1
+          check_exit 1 --engine es tests/fixtures/Caddyfile.plan || failed=1
+          for f in scenarios/*/Caddyfile; do
+            name=$(basename "$(dirname "$f")")
+            case $name in
+            es-*) engine=es ;;
+            os-*) engine=os ;;
+            *) echo "::error::$f: no engine for scenario $name"; failed=1; continue ;;
+            esac
+            check_exit 0 --engine "$engine" "$f" || failed=1
+          done
+          exit "$failed"
 
   node:
     runs-on: ubuntu-latest
