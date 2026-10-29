@@ -29,6 +29,7 @@ Be clear about this before copying anything: OpenSearch is not Elasticsearch wit
 | `init-security.sh` | Renders the users file with bcrypt hashes from `hash.sh`; `--apply` loads changes with `securityadmin.sh` |
 | `Caddyfile` | The allowlisted proxy, see below |
 | `.env.example` | Passwords, site address, allowlist, bind addresses |
+| `init-env.sh` | Writes `.env` from `.env.example` with random 32-character passwords, mode 600; refuses to overwrite an existing `.env` |
 | `expected.tsv` | Checks for the lab runner, format below |
 | `bodies/` | Request bodies used by `expected.tsv` |
 | `compose.bench.yaml` | Benchmark override for `bench/run.sh` |
@@ -39,7 +40,7 @@ Requirements as in the top-level README: Linux, cgroup v2, Docker Engine with th
 
 ```sh
 cd scenarios/os-single
-cp .env.example .env          # set ADMIN_PASSWORD, APP_PASSWORD, OS_SITE_ADDRESS, ALLOWED_CIDRS
+./init-env.sh                 # or cp .env.example .env; then set OS_SITE_ADDRESS, ALLOWED_CIDRS
 certs/gen-certs.sh            # once; --force regenerates everything including the CA
 ./init-security.sh            # renders security/internal_users.yml, needs Docker for hash.sh
 cd ../.. && make up SCENARIO=os-single

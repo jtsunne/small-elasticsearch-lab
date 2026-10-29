@@ -22,7 +22,7 @@ The API site has a path allowlist; the Dashboards site cannot have one, because 
 
 ```sh
 cd scenarios/os-single-dashboards
-cp .env.example .env          # passwords, KIBANASERVER_PASSWORD, DASHBOARDS_COOKIE_SECRET, both site addresses, ALLOWED_CIDRS
+./init-env.sh                 # random passwords, KIBANASERVER_PASSWORD, DASHBOARDS_COOKIE_SECRET; then set both site addresses, ALLOWED_CIDRS
 certs/gen-certs.sh
 ./init-security.sh            # hashes admin, app_x and kibanaserver
 cd ../.. && make up SCENARIO=os-single-dashboards
@@ -41,6 +41,7 @@ Same as `os-single` (each scenario is self-contained, so the shared files are co
 | `Caddyfile` | the `os-single` API site unchanged, plus the Dashboards site: allowlist, body limit, no path rules (`DASHBOARDS_UPSTREAM` overrides `osd01:5601`) |
 | `internal_users.yml.example`, `roles_mapping.yml` | add `kibanaserver` and its `kibana_server` mapping |
 | `.env.example` | adds `KIBANASERVER_PASSWORD`, `DASHBOARDS_COOKIE_SECRET`, `DASHBOARDS_SITE_ADDRESS` |
+| `init-env.sh` | as in `os-single`; `DASHBOARDS_COOKIE_SECRET` gets 48 random alphanumeric characters |
 | `compose.bench.yaml` | as in `os-single`, plus `OPENSEARCH_HOSTS=["http://os01:9200"]` for `osd01`, because the benchmark switches the node to plain HTTP; Dashboards keeps running and its load is part of the host load |
 
 ## expected.tsv
