@@ -8,7 +8,7 @@ usage() {
 	cat <<'EOF'
 usage: host-info.sh --host-id LABEL [options]
 
-  --host-id LABEL      host label such as laptop-6c32g-nvme-01 (required, not the hostname)
+  --host-id LABEL      host label such as laptop-6c16g-nvme-01 (required, not the hostname)
   --host-class CLASS   laptop, desktop, server or vm, as declared by the operator
   --data-path PATH     path on the filesystem that holds the data volume (default /var/lib/docker)
   --compose FILE       compose file to hash (repeatable)

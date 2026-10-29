@@ -2,7 +2,7 @@
 
 One OpenSearch 3.9.0 node with the security plugin on, the demo configuration off, its own CA, node and admin certificates generated with openssl, HTTPS on the node, and Caddy in front with an IP allowlist, a path and method allowlist and a body size limit. It is the OpenSearch counterpart of `es-single` and the scenario behind the "OpenSearch differences" block of the guide's security page.
 
-**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 62 of 62 rows pass, `results/tests/2026-10-29-os-single.tap`.
+**Tested on 2026-10-29**, host `laptop-6c16g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 62 of 62 rows pass, `results/tests/2026-10-29-os-single.tap`.
 
 The first run the same day passed 48 of 62. Its failures, and what they turned out to be:
 

@@ -2,7 +2,7 @@
 
 The `os-single` scenario plus OpenSearch Dashboards 3.9.0, on its own site behind the same Caddy and the same IP allowlist. Everything in `../os-single/README.md` applies here; read it first. This file covers only what Dashboards adds.
 
-**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0, OpenSearch Dashboards 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 70 of 70 rows pass, `results/tests/2026-10-29-os-single-dashboards.tap`.
+**Tested on 2026-10-29**, host `laptop-6c16g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0, OpenSearch Dashboards 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 70 of 70 rows pass, `results/tests/2026-10-29-os-single-dashboards.tap`.
 
 The first run the same day passed 55 of 70. Its failures were the same 14 rows as in `os-single` (missing `Content-Type` and its cascade, and the HTTP/2 abort seen as curl exit 92), plus `os-single-dashboards-64` (L-K2, the same exit 92 on the Dashboards site). See `../os-single/README.md` for each.
 

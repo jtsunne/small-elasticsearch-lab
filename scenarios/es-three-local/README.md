@@ -4,7 +4,7 @@ Three Elasticsearch 9.5.5 nodes, es01, es02 and es03, all master-eligible data n
 
 **LAB ONLY. Three nodes on one host give no real fault tolerance.** They share one CPU, one memory pool, one disk and one kernel; when the host goes, all three go. This scenario shows how quorum, master election and replica allocation behave, nothing more. A real three-node cluster needs three hosts, or at least three separate failure domains.
 
-**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with Elasticsearch 9.5.5 and Caddy 2.11.7 as pinned in `versions.env`. Results: `expected.tsv` 30 of 30 (`results/tests/2026-10-29-es-three-local.tap`); `fault-test.sh` 15 of 15 (`results/tests/2026-10-29-es-three-local-fault.tap`, run with `FAULT_WRITE_TIMEOUT=100`). `fault-test.sh` also passed 15 of 15 with the default 30 s timeout the same day; that TAP is not in `results/`. `certs/gen-certs.sh` ran as part of `make test`.
+**Tested on 2026-10-29**, host `laptop-6c16g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with Elasticsearch 9.5.5 and Caddy 2.11.7 as pinned in `versions.env`. Results: `expected.tsv` 30 of 30 (`results/tests/2026-10-29-es-three-local.tap`); `fault-test.sh` 15 of 15 (`results/tests/2026-10-29-es-three-local-fault.tap`, run with `FAULT_WRITE_TIMEOUT=100`). `fault-test.sh` also passed 15 of 15 with the default 30 s timeout the same day; that TAP is not in `results/`. `certs/gen-certs.sh` ran as part of `make test`.
 
 The first run the same day passed 4 of 29 rows. What the failures turned out to be:
 
