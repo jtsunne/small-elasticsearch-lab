@@ -1,0 +1,4 @@
+{"create":{}}
+{"message":"own index, create action","@timestamp":"2026-01-01T00:00:01Z"}
+{"index":{}}
+{"message":"own index, index action, auto id","@timestamp":"2026-01-01T00:00:02Z"}

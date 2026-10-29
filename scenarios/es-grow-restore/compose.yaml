@@ -1,0 +1,149 @@
+# Procedure A: es00 is the existing single node (es-single's configuration plus
+# path.repo), es01..es03 are the new cluster (profile "new"). Both mount the
+# same snapshot directory. Lab only: four nodes on one host.
+name: es-grow-restore
+
+x-es-node: &es-node
+  image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+  cpus: 1
+  mem_limit: 2g
+  ulimits:
+    memlock:
+      soft: -1
+      hard: -1
+    nofile:
+      soft: 65535
+      hard: 65535
+  networks:
+    - backend
+  healthcheck:
+    test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+    interval: 10s
+    timeout: 10s
+    retries: 30
+    start_period: 30s
+
+# Every master and data node of a cluster that uses an fs repository must see
+# it at the same path; both clusters see the same directory.
+x-snapshots: &snapshots
+  type: bind
+  source: ${SNAPSHOT_DIR:?set SNAPSHOT_DIR in .env}
+  target: /usr/share/elasticsearch/snapshots
+  bind:
+    create_host_path: false
+
+x-new-env: &new-env
+  cluster.name: es-grow-new
+  node.roles: master,data,ingest
+  discovery.seed_hosts: es01,es02,es03
+  # A brand-new cluster: read only until it has formed once.
+  cluster.initial_master_nodes: es01,es02,es03
+  path.repo: /usr/share/elasticsearch/snapshots
+  xpack.security.enabled: "true"
+  xpack.security.http.ssl.enabled: "false"
+  xpack.security.transport.ssl.enabled: "true"
+  xpack.security.transport.ssl.verification_mode: certificate
+  xpack.security.transport.ssl.key: certs/node-key.pem
+  xpack.security.transport.ssl.certificate: certs/node.pem
+  xpack.security.transport.ssl.certificate_authorities: certs/ca.pem
+  xpack.license.self_generated.type: basic
+  bootstrap.memory_lock: "true"
+  ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+  ES_JAVA_OPTS: ${ES_HEAP_OPTS--Xms1g -Xmx1g}
+
+x-ca: &ca
+  type: bind
+  source: ./certs/ca.pem
+  target: /usr/share/elasticsearch/config/certs/ca.pem
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  es00:
+    <<: *es-node
+    environment:
+      node.name: es00
+      cluster.name: es-grow-old
+      discovery.type: single-node
+      path.repo: /usr/share/elasticsearch/snapshots
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      xpack.license.self_generated.type: basic
+      bootstrap.memory_lock: "true"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      ES_JAVA_OPTS: ${ES_HEAP_OPTS--Xms1g -Xmx1g}
+    volumes:
+      - esdata00:/usr/share/elasticsearch/data
+      - *snapshots
+
+  es01:
+    <<: *es-node
+    profiles: [new]
+    environment:
+      <<: *new-env
+      node.name: es01
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es01.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es01-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  es02:
+    <<: *es-node
+    profiles: [new]
+    environment:
+      <<: *new-env
+      node.name: es02
+    volumes:
+      - esdata02:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es02.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es02-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  es03:
+    <<: *es-node
+    profiles: [new]
+    environment:
+      <<: *new-env
+      node.name: es03
+    volumes:
+      - esdata03:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es03.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es03-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE comes from versions.env}
+    depends_on:
+      es00:
+        condition: service_healthy
+    environment:
+      - ES_SITE_ADDRESS=${ES_SITE_ADDRESS:?set ES_SITE_ADDRESS in .env}
+      - ALLOWED_CIDRS=${ALLOWED_CIDRS:?set ALLOWED_CIDRS in .env}
+      # step-5-cutover.sh and rollback.sh rewrite this in .env.
+      - ES_UPSTREAMS=${ES_UPSTREAMS:-es00:9200}
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+networks:
+  backend: {}
+
+volumes:
+  esdata00: {}
+  esdata01: {}
+  esdata02: {}
+  esdata03: {}
+  caddy_data: {}
+  caddy_config: {}
