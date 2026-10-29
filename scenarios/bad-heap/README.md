@@ -2,7 +2,7 @@
 
 A deliberately wrong heap for lab test L-M2: `-Xms1536m -Xmx1536m` inside a 2 GiB container. **Not a configuration to copy.** Everything else matches `es-single`, minus Caddy.
 
-**Tested on: NOT YET TESTED.** Static checks only (`docker compose config`).
+**Tested on: NOT YET TESTED.** This scenario was not part of the 2026-10-29 lab run (see the top-level README for what ran); its files have had static checks only (`docker compose config`). L-M2 is open, and so is L-M3, which needs the same kind of loaded run.
 
 ## Why it is wrong
 

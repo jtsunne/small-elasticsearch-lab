@@ -1,0 +1,104 @@
+TAP version 13
+# scenario: es-single-kibana (scenarios/es-single-kibana/expected.tsv)
+# up: project es-single-kibana
+# node: es01 at http://127.0.0.1:9200 (from inside the container)
+# clients: allowed from 10.231.1.0/24, denied from 10.231.2.0/24 (allowlist variables set to 10.231.1.0/24)
+# running setup-roles.sh
+not ok 1 - es-single-kibana-01 [health] GET /_cluster/health -> 200 (jq:.status == "green")
+#   jq -e .status == "green": false
+#   body: {"cluster_name":"es-single-kibana","status":"yellow","timed_out":false,"number_of_nodes":1,"number_of_data_nodes":1,"active_primary_shards":35,"active_shards":35,"relocating_shards":0,"initializing_shards":0,"unassigned_shards":1,"unassigned_primary_shards":1,"delayed_unassigned_shards":0,"number_of
+ok 2 - es-single-kibana-02 [L-M1] GET /_nodes/jvm -> 200 (jq:[.nodes[].jvm.mem.heap_max_in_bytes][0] == 1073741824)
+ok 3 - es-single-kibana-03 [L-C1] GET /_nodes/os -> 200 (jq:[.nodes[].os.allocated_processors][0] == 1)
+ok 4 - es-single-kibana-04 [L-C1] GET /_nodes/thread_pool -> 200 (jq:([.nodes[].thread_pool.write.size][0] == 1) and ([.nodes[].thread_pool.search.size][0] == 2))
+ok 5 - es-single-kibana-05 [L-S1] GET /_cat/shards?format=json&h=index,prirep,state -> 200 (record)
+#   recorded results/tests/2026-10-29-es-single-kibana/es-single-kibana-05.json
+ok 6 - es-single-kibana-06 [L-N1] GET http://127.0.0.1:9200/ -> refused
+ok 7 - es-single-kibana-07 [L-P1] GET /app-a/_search -> abort
+ok 8 - es-single-kibana-08 [L-P1] GET /_cluster/settings -> abort
+ok 9 - es-single-kibana-09 [L-P2] GET /app-a/_search -> 401
+ok 10 - es-single-kibana-10 [L-P2] GET /app-a/_search -> 401
+ok 11 - es-single-kibana-11 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 12 - es-single-kibana-12 [L-P3] POST /app-a/_count -> 200 (jq:.count >= 1)
+ok 13 - es-single-kibana-13 [L-P3] GET /app-a/_count -> 200 (jq:.count >= 1)
+ok 14 - es-single-kibana-14 [L-P4] GET /_cluster/settings -> 404
+ok 15 - es-single-kibana-15 [L-P4] GET /_cat/indices -> 404
+ok 16 - es-single-kibana-16 [L-P4] GET /_nodes -> 404
+ok 17 - es-single-kibana-17 [L-P4] GET /_security/user -> 404
+ok 18 - es-single-kibana-18 [L-P4] GET /_security/api_key -> 404
+ok 19 - es-single-kibana-19 [L-P4] GET /_snapshot -> 404
+ok 20 - es-single-kibana-20 [L-P4] GET /_license -> 404
+ok 21 - es-single-kibana-21 [L-P4] GET /secret/_search -> 404
+ok 22 - es-single-kibana-22 [L-P4] GET /app-a/_mapping -> 404
+ok 23 - es-single-kibana-23 [L-P4] GET /app-a/_settings -> 404
+ok 24 - es-single-kibana-24 [L-P4] GET /_cluster/settings -> 403 (contains:security_exception)
+ok 25 - es-single-kibana-25 [L-P4] GET /secret/_search -> 403 (contains:security_exception)
+ok 26 - es-single-kibana-26 [L-P4] GET /_security/user -> 403 (contains:security_exception)
+ok 27 - es-single-kibana-27 [L-P3] GET /app-a/_search?size=1&q=message:seed -> 200 (jq:.hits.total.value >= 1)
+ok 28 - es-single-kibana-28 [L-P5] GET /%5Fcluster/settings -> 404
+ok 29 - es-single-kibana-29 [L-P5] GET /%5fcluster/settings -> 404
+ok 30 - es-single-kibana-30 [L-P5] GET /app-a/%5Fsearch/../../_cluster/settings -> 404
+ok 31 - es-single-kibana-31 [L-P5] GET /app-a/%5Fsearch -> 404
+ok 32 - es-single-kibana-32 [L-P5] GET /app-%61/_search -> 404
+ok 33 - es-single-kibana-33 [L-P6] GET /_CLUSTER/settings -> 404
+ok 34 - es-single-kibana-34 [L-P6] GET /APP-A/_search -> 404
+ok 35 - es-single-kibana-35 [L-P6] GET /app-a/_SEARCH -> 404
+ok 36 - es-single-kibana-36 [L-P7] GET //_cluster/settings -> 404
+ok 37 - es-single-kibana-37 [L-P7] GET /./_cluster/settings -> 404
+ok 38 - es-single-kibana-38 [L-P7] GET /app-a/../_cluster/settings -> 404
+ok 39 - es-single-kibana-39 [L-P7] GET /app-a/%2E%2E/_cluster/settings -> 404
+ok 40 - es-single-kibana-40 [L-P7] GET /app-a/_search/../../_cluster/settings -> 404
+ok 41 - es-single-kibana-41 [L-P7] GET /secret/../app-a/_search -> 404
+ok 42 - es-single-kibana-42 [L-P7] GET /secret/%2E%2E/app-a/_search -> 404
+ok 43 - es-single-kibana-43 [L-P7] GET //app-a/_search -> 404
+ok 44 - es-single-kibana-44 [L-P7] GET /app-a//_search -> 404
+ok 45 - es-single-kibana-45 [L-P7] GET /app-a/./_search -> 404
+ok 46 - es-single-kibana-46 [L-P7] GET /app-a/_search/ -> 404
+ok 47 - es-single-kibana-47 [L-P8] GET /app-a,secret/_search -> 404
+ok 48 - es-single-kibana-48 [L-P8] GET /app-a%2Csecret/_search -> 404
+ok 49 - es-single-kibana-49 [L-P8] GET /remote:app-a/_search -> 404
+ok 50 - es-single-kibana-50 [L-P9] GET /app-*/_search -> 404
+ok 51 - es-single-kibana-51 [L-P9] GET /app-a%2A/_search -> 404
+ok 52 - es-single-kibana-52 [L-P9] GET /*/_search -> 404
+ok 53 - es-single-kibana-53 [L-P9] GET /_all/_search -> 404
+ok 54 - es-single-kibana-54 [L-P9] GET /_search -> 404
+ok 55 - es-single-kibana-55 [L-P10] GET /%3Capp-%7Bnow%2Fd%7D%3E/_search -> 404
+ok 56 - es-single-kibana-56 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == true) and (.items[0].create.status == 403))
+ok 57 - es-single-kibana-57 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201))
+ok 58 - es-single-kibana-90 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index")))
+ok 59 - es-single-kibana-58 [L-P12] POST /app-a/_bulk -> 200 (jq:.items[0].index.status == 403)
+ok 60 - es-single-kibana-59 [L-P12] POST /app-a/_bulk -> 200 (jq:.items[0].delete.status == 403)
+ok 61 - es-single-kibana-60 [L-P12] POST /app-a/_bulk -> 200 (jq:.items[0].create.status == 403)
+ok 62 - es-single-kibana-61 [L-P13] POST /app-a/_search -> 200 (jq:.aggregations.len.buckets | length >= 1)
+ok 63 - es-single-kibana-62 [L-P14] POST /app-a/_bulk -> 413
+ok 64 - es-single-kibana-63 [L-P15] POST /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 65 - es-single-kibana-64 [L-P15] GET /app-a/_count -> 200 (jq:.count >= 1)
+ok 66 - es-single-kibana-65 [L-P16] GET http://es01:9200/_cluster/settings -> 400|404|421|200|abort (!contains:persistent)
+ok 67 - es-single-kibana-66 [L-P17] POST /_msearch -> 404
+ok 68 - es-single-kibana-67 [L-P17] POST /app-a/_msearch -> 404
+ok 69 - es-single-kibana-68 [L-P17] POST /_async_search -> 404
+ok 70 - es-single-kibana-69 [L-P17] POST /app-a/_async_search -> 404
+ok 71 - es-single-kibana-70 [L-P17] POST /app-a/_pit -> 404
+ok 72 - es-single-kibana-71 [L-P17] POST /_pit -> 404
+ok 73 - es-single-kibana-72 [L-P18] POST /_search/scroll -> 404
+ok 74 - es-single-kibana-73 [L-P19] DELETE /app-a -> 404
+ok 75 - es-single-kibana-74 [L-P19] PUT /app-a/_doc/1 -> 404
+ok 76 - es-single-kibana-75 [L-P19] GET /app-a/_bulk -> 404
+ok 77 - es-single-kibana-76 [L-P19] GET /app-a/_doc/seed -> 404
+ok 78 - es-single-kibana-77 [L-P20] GET / -> 404 (!contains:cluster_uuid)
+ok 79 - es-single-kibana-78 [L-S1] GET /_cat/indices?format=json&expand_wildcards=all&h=index,pri,rep -> 200 (record)
+#   recorded results/tests/2026-10-29-es-single-kibana/es-single-kibana-78.json
+ok 80 - es-single-kibana-79 [L-K2] GET / -> abort
+ok 81 - es-single-kibana-80 [L-K2] GET /api/status -> abort
+ok 82 - es-single-kibana-81 [L-K2] GET /api/status -> 200 (contains:available)
+ok 83 - es-single-kibana-82 [L-K2] GET /login -> 200
+ok 84 - es-single-kibana-83 [L-K3] POST /api/console/proxy?path=_cluster/settings&method=GET -> 200 (contains:persistent)
+ok 85 - es-single-kibana-91 [L-K3] POST /api/console/proxy?path=_cluster/settings&method=GET -> 400 (contains:exists but is not available with the current configuration)
+ok 86 - es-single-kibana-84 [L-K3] POST /api/console/proxy?path=_cluster/settings&method=GET -> 403|401 (!contains:persistent)
+ok 87 - es-single-kibana-85 [L-M1] GET /_nodes/jvm?filter_path=nodes.*.jvm.input_arguments,nodes.*.jvm.mem.heap_max_in_bytes -> 200 (record)
+#   recorded results/tests/2026-10-29-es-single-kibana/es-single-kibana-85.json
+ok 88 - es-single-kibana-86 [L-P4] POST /_security/api_key -> 403 (contains:security_exception)
+ok 89 - es-single-kibana-87 [L-P4] POST /_security/api_key -> 403 (contains:security_exception)
+ok 90 - es-single-kibana-88 [L-P3] GET /_security/_authenticate -> 200 (jq:(.authentication_type == "api_key") and (.api_key.name == "app-x-key") and (.username == "elastic"))
+ok 91 - es-single-kibana-89 [L-P3] GET /_security/api_key?name=app-x-key&active_only=true -> 200 (jq:(.api_keys | length >= 1) and all(.api_keys[]; (.expiration != null) and (.role_descriptors | keys == ["app_x_key"])))
+1..91
+# tests 91, failed 1, skipped 0

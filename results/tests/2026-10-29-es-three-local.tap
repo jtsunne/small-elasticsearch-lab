@@ -1,0 +1,41 @@
+TAP version 13
+# scenario: es-three-local (scenarios/es-three-local/expected.tsv)
+# up: project es-three-local
+# node: es03 at http://127.0.0.1:9200 (from inside the container)
+# clients: allowed from 10.231.1.0/24, denied from 10.231.2.0/24 (allowlist variables set to 10.231.1.0/24)
+# running setup-roles.sh
+ok 1 - es-three-local-01 [health] GET /_cluster/health?wait_for_status=green&timeout=60s -> 200 (jq:(.status == "green") and (.number_of_nodes == 3) and (.number_of_data_nodes == 3))
+ok 2 - es-three-local-02 [L-T0] GET /_nodes?filter_path=nodes.*.name,nodes.*.roles -> 200 (jq:([.nodes[].name] | sort == ["es01","es02","es03"]) and all(.nodes[]; .roles | index("master") != null))
+ok 3 - es-three-local-03 [L-T0] GET /_nodes?filter_path=nodes.*.roles -> 200 (jq:all(.nodes[]; (.roles | sort) == ["data","ingest","master"]))
+ok 4 - es-three-local-04 [L-T0] GET /_cluster/state/metadata?filter_path=metadata.cluster_coordination.last_committed_config -> 200 (jq:.metadata.cluster_coordination.last_committed_config | length == 3)
+ok 5 - es-three-local-05 [L-T0] GET /_cluster/state/metadata?filter_path=metadata.cluster_coordination -> 200 (record)
+#   recorded results/tests/2026-10-29-es-three-local/es-three-local-05.json
+ok 6 - es-three-local-06 [L-T0] GET /_cat/master?format=json -> 200 (jq:.[0].node | test("^es0[123]$"))
+ok 7 - es-three-local-07 [L-T0] GET /_nodes/settings?filter_path=nodes.*.settings.xpack.security.transport.ssl.enabled -> 200 (jq:[.nodes[].settings.xpack.security.transport.ssl.enabled] == ["true","true","true"])
+ok 8 - es-three-local-08 [L-T0] GET /_ssl/certificates -> 200 (record)
+#   recorded results/tests/2026-10-29-es-three-local/es-three-local-08.json
+ok 9 - es-three-local-09 [L-M1] GET /_nodes/jvm -> 200 (jq:[.nodes[].jvm.mem.heap_max_in_bytes] == [1073741824,1073741824,1073741824])
+ok 10 - es-three-local-10 [L-C1] GET /_nodes/os -> 200 (jq:[.nodes[].os.allocated_processors] == [1,1,1])
+ok 11 - es-three-local-11 [L-T0] GET /_cat/shards/app-a,secret?format=json&h=index,prirep,state,node -> 200 (jq:(length == 4) and all(.[]; .state == "STARTED") and ([group_by(.index)[] | map(.node) | unique | length] == [2,2]))
+ok 12 - es-three-local-12 [L-T0] GET /app-a/_settings?filter_path=*.settings.index.number_of_replicas -> 200 (jq:."app-a".settings.index.number_of_replicas == "1")
+ok 13 - es-three-local-13 [L-T0] GET /_cat/shards?format=json&h=index,shard,prirep,state,node -> 200 (record)
+#   recorded results/tests/2026-10-29-es-three-local/es-three-local-13.json
+ok 14 - es-three-local-14 [L-N1] GET http://127.0.0.1:9200/ -> refused
+ok 15 - es-three-local-15 [L-N1] GET http://127.0.0.1:9300/ -> refused
+ok 16 - es-three-local-16 [L-P1] GET /app-a/_search -> abort
+ok 17 - es-three-local-17 [L-P2] GET /app-a/_search -> 401
+ok 18 - es-three-local-18 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 19 - es-three-local-19 [L-P3] POST /app-a/_count -> 200 (jq:.count >= 1)
+ok 20 - es-three-local-20 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 21 - es-three-local-21 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 22 - es-three-local-22 [L-P4] GET /_cluster/settings -> 404
+ok 23 - es-three-local-23 [L-P4] GET /_nodes -> 404
+ok 24 - es-three-local-24 [L-P4] GET /_cat/nodes -> 404
+ok 25 - es-three-local-25 [L-P4] GET /_cat/nodes -> 403 (contains:security_exception)
+ok 26 - es-three-local-26 [L-P7] GET /secret/../app-a/_search -> 404
+ok 27 - es-three-local-27 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == true) and (.items[0].create.status == 403))
+ok 28 - es-three-local-28 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201))
+ok 29 - es-three-local-30 [L-P12] POST /app-a/_bulk -> 200 (jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index")))
+ok 30 - es-three-local-29 [L-P20] GET / -> 404 (!contains:cluster_uuid)
+1..30
+# tests 30, failed 0, skipped 0

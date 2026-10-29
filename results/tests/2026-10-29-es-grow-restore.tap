@@ -1,0 +1,4 @@
+TAP version 13
+# scenario: es-grow-restore (scenarios/es-grow-restore/expected.tsv)
+# no .env: running init-env.sh
+# no certificates: running certs/gen-certs.sh

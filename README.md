@@ -2,7 +2,7 @@
 
 Docker Compose scenarios, tests and benchmarks for running a small Elasticsearch or OpenSearch deployment: one node, or three, on a single modest host. This repository is the companion to the Elasticsearch guide on [miasnychenko.com](https://miasnychenko.com/elasticsearch/). Every configuration the guide shows comes from a scenario here, and every number it quotes comes from a result file here.
 
-Status: work in progress. No scenario has been written or tested yet, and no benchmark has been run. Sections below that depend on lab results say so.
+Status: work in progress. Five scenarios passed a functional lab run on 2026-10-29 (table in section 3); the growth scenarios, `bad-heap` and the OpenSearch three-node scenarios have not been run, and no benchmark has been run. Sections below that depend on lab results say so.
 
 ## 1. What this is
 
@@ -38,17 +38,19 @@ What is not covered:
 
 | Scenario | Engine | Nodes | Security model | Tested on | Guide page |
 |---|---|---|---|---|---|
-| `es-single` | Elasticsearch | 1 | auth on, no node TLS, Caddy TLS + allowlists | not yet tested | Minimal security |
-| `es-single-kibana` | Elasticsearch + Kibana | 1 | as above, Kibana behind Caddy | not yet tested | Minimal security |
-| `es-three-local` | Elasticsearch | 3 on one host | auth on, transport TLS | not yet tested | One node or three |
+| `es-single` | Elasticsearch | 1 | auth on, no node TLS, Caddy TLS + allowlists | 2026-10-29: 83/83 | Minimal security |
+| `es-single-kibana` | Elasticsearch + Kibana | 1 | as above, Kibana behind Caddy | 2026-10-29: 90/91 (row 01 asserted green while Kibana was still creating its indices; the row now waits) | Minimal security |
+| `es-three-local` | Elasticsearch | 3 on one host | auth on, transport TLS | 2026-10-29: 30/30, fault test 15/15 | One node or three |
 | `es-grow-restore` | Elasticsearch | 1 to 3 | as above | not yet tested | One node or three |
 | `es-grow-inplace` | Elasticsearch | 1 to 3 | as above | not yet tested | One node or three |
-| `os-single` | OpenSearch | 1 | security plugin, own certificates, no HTTP TLS on the node, Caddy in front | not yet tested | Minimal security |
-| `os-single-dashboards` | OpenSearch + Dashboards | 1 | as above | not yet tested | Minimal security |
+| `os-single` | OpenSearch | 1 | security plugin, own certificates, HTTPS on the node, Caddy in front | 2026-10-29: 62/62 | Minimal security |
+| `os-single-dashboards` | OpenSearch + Dashboards | 1 | as above | 2026-10-29: 70/70 | Minimal security |
 | `os-three-local` | OpenSearch | 3 on one host | security plugin, transport TLS | not yet tested | One node or three |
 | `os-grow-restore` | OpenSearch | 1 to 3 | as above | not yet tested | One node or three |
 | `os-grow-inplace` | OpenSearch | 1 to 3 | as above | not yet tested | One node or three |
 | `bad-heap` | Elasticsearch | 1 | deliberately wrong heap | not yet tested | Sizing |
+
+"Tested on" counts are rows passed of rows run, from the TAP files in `results/tests/`. All runs on 2026-10-29 used one host, `laptop-6c32g-nvme-01`: the author's laptop, Linux with cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, `vm.max_map_count` 1048576, Docker 29.9.1, Compose 5.6.0, and the images pinned in `versions.env` (Elasticsearch 9.5.5, Kibana 9.5.5, OpenSearch 3.9.0, OpenSearch Dashboards 3.9.0, Caddy 2.11.7). The first run that day failed rows because of mistakes in the test rows, the runner and one readiness wait in a setup script, not in the compose files or Caddyfiles; each scenario README lists them and what they turned out to be, and `results/FINDINGS-2026-10-29.md` summarises what the run showed.
 
 Each scenario directory has a README with its purpose. Until a scenario has a `compose.yaml`, `make up` refuses to run it.
 

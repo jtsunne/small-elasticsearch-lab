@@ -1,0 +1,32 @@
+TAP version 13
+# scenario: es-three-local fault test, client network es-three-local-fault-client (10.231.3.0/24)
+ok 1 - baseline: green with 3 nodes
+ok 2 - baseline: bulk create through Caddy
+ok 3 - baseline: elected master is one of es01..es03
+# L-T1: stopping the elected master es03
+ok 4 - L-T1: a new master is elected after es03 stops (0s)
+#   measured: new master es01 after 0s
+#   health right after the loss: {"status":"yellow","number_of_nodes":2,"unassigned_shards":4}
+ok 5 - L-T1: none of six searches through Caddy fails with one node down
+ok 6 - L-T1: bulk create through Caddy with one node down
+ok 7 - L-T1: green again on two nodes (49s)
+#   measured: green 49s after the master change; replica allocation waits index.unassigned.node_left.delayed_timeout
+# L-T2: stopping es01, leaving es02 alone
+ok 8 - L-T2: es02 reports no master (0s)
+ok 9 - L-T2: cluster health without a master answers 503
+#   health body: {"error":{"root_cause":[{"type":"master_not_discovered_exception","reason":null}],"type":"master_not_discovered_exception","reason":null},"status":503}
+#   measured: search through Caddy without a master: status 200, body {"took":2,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"total":{"value":3,"relation":"eq"},"max_score":1.0,"hits":[{"_index":"app-a","_id":"seed","_score":1.0,"_source":{"message": "seed", "@timestamp": "2026-01-01T00:00:00Z"}
+# },{"_index":"app-a","_id":"base-
+ok 10 - L-T2: bulk create without a master is not acknowledged (status 503, curl exit 0, 62s)
+#   curl exit 0: a complete HTTP response
+#   status 503, curl time_total 60.012457s, 62s wall clock, --max-time 100s
+#   curl error: <none>
+#   body: {"error":{"root_cause":[{"type":"cluster_block_exception","reason":"blocked by: [SERVICE_UNAVAILABLE/2/no master];"}],"type":"cluster_block_exception","reason":"blocked by: [SERVICE_UNAVAILABLE/2/no master];"},"status":503}
+# recovery: starting es03 and es01
+ok 11 - recovery: green with all nodes back (49s)
+ok 12 - recovery: three nodes in the cluster
+ok 13 - recovery: the write accepted during L-T1 is present
+ok 14 - recovery: the write rejected during L-T2 is absent
+ok 15 - recovery: all three nodes report the same cluster_uuid
+1..15
+# tests 15, failed 0, skipped 0

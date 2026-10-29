@@ -1,0 +1,78 @@
+TAP version 13
+# scenario: os-single-dashboards (scenarios/os-single-dashboards/expected.tsv)
+# running init-security.sh
+# up: project os-single-dashboards
+# node: os01 at https://127.0.0.1:9200 (from inside the container)
+# clients: allowed from 10.231.1.0/24, denied from 10.231.2.0/24 (allowlist variables set to 10.231.1.0/24)
+ok 1 - os-single-dashboards-01 [setup] PUT /app-a -> 200 (jq:.acknowledged == true)
+ok 2 - os-single-dashboards-02 [setup] PUT /secret -> 200 (jq:.acknowledged == true)
+ok 3 - os-single-dashboards-03 [L-O2] GET / -> 401
+ok 4 - os-single-dashboards-04 [L-O2] GET /_plugins/_security/authinfo -> 200 (jq:.user_name == "admin" and (.roles | index("all_access")) != null)
+ok 5 - os-single-dashboards-05 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 6 - os-single-dashboards-06 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 7 - os-single-dashboards-07 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 8 - os-single-dashboards-08 [L-O3] GET /_plugins/_security/authinfo -> 200 (jq:.user_name == "app_x" and (.roles | index("app_writer")) != null)
+ok 9 - os-single-dashboards-09 [L-M1] GET /_nodes/jvm?filter_path=nodes.*.jvm.mem.heap_max_in_bytes -> 200 (jq:[.nodes[].jvm.mem.heap_max_in_bytes] == [1073741824])
+ok 10 - os-single-dashboards-10 [L-C1] GET /_nodes/os?filter_path=nodes.*.os.allocated_processors -> 200 (jq:[.nodes[].os.allocated_processors] == [1])
+ok 11 - os-single-dashboards-11 [health] GET /_cluster/health -> 200 (jq:.status != "red")
+ok 12 - os-single-dashboards-12 [L-O3] POST /app-a/_bulk?refresh=true -> 200 (jq:.errors == false)
+ok 13 - os-single-dashboards-13 [L-O3] POST /app-a/_bulk?refresh=true -> 200 (jq:.errors == true and .items[0].index.status == 403)
+ok 14 - os-single-dashboards-14 [L-O3] GET /secret/_search -> 403
+ok 15 - os-single-dashboards-15 [L-O3] PUT /app-b -> 403
+ok 16 - os-single-dashboards-16 [L-O3] DELETE /app-a -> 403
+ok 17 - os-single-dashboards-17 [L-P1] GET /app-a/_search -> abort
+ok 18 - os-single-dashboards-18 [L-P1] GET /app-a/_search -> abort
+ok 19 - os-single-dashboards-19 [L-P2] GET /app-a/_search -> 401
+ok 20 - os-single-dashboards-20 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 21 - os-single-dashboards-21 [L-P3] POST /app-a/_count -> 200 (jq:.count >= 1)
+ok 22 - os-single-dashboards-22 [L-P4] GET /_cluster/settings -> 404
+ok 23 - os-single-dashboards-23 [L-P4] GET /_cat/indices -> 404
+ok 24 - os-single-dashboards-24 [L-P4] GET /_nodes -> 404
+ok 25 - os-single-dashboards-25 [L-P4] GET /_plugins/_security/api/internalusers -> 404
+ok 26 - os-single-dashboards-26 [L-P4] GET /_plugins/_security/authinfo -> 404
+ok 27 - os-single-dashboards-27 [L-P4] GET /_opendistro/_security/api/internalusers -> 404
+ok 28 - os-single-dashboards-28 [L-P4] GET /_snapshot -> 404
+ok 29 - os-single-dashboards-29 [L-P4] POST /_plugins/_sql -> 404
+ok 30 - os-single-dashboards-30 [L-P5] GET /%5Fcluster/settings -> 404
+ok 31 - os-single-dashboards-31 [L-P5] GET /%5fcluster/settings -> 404
+ok 32 - os-single-dashboards-32 [L-P6] GET /_CLUSTER/settings -> 404
+ok 33 - os-single-dashboards-33 [L-P7] GET //_cluster/settings -> 404
+ok 34 - os-single-dashboards-34 [L-P7] GET /./_cluster/settings -> 404
+ok 35 - os-single-dashboards-35 [L-P7] GET /app-a/../_cluster/settings -> 404
+ok 36 - os-single-dashboards-36 [L-P7] GET /app-a/%2E%2E/_cluster/settings -> 404
+ok 37 - os-single-dashboards-37 [L-P8] GET /app-a,secret/_search -> 404
+ok 38 - os-single-dashboards-38 [L-P8] GET /app-a%2Csecret/_search -> 404
+ok 39 - os-single-dashboards-39 [L-P9] GET /app-*/_search -> 404
+ok 40 - os-single-dashboards-40 [L-P9] GET /app-a%2A/_search -> 404
+ok 41 - os-single-dashboards-41 [L-P9] GET /*/_search -> 404
+ok 42 - os-single-dashboards-42 [L-P9] GET /_all/_search -> 404
+ok 43 - os-single-dashboards-43 [L-P10] GET /%3Capp-%7Bnow%2Fd%7D%3E/_search -> 404
+ok 44 - os-single-dashboards-44 [L-P12] POST /app-a/_bulk -> 200 (jq:.errors == true and .items[0].index.status == 403)
+ok 45 - os-single-dashboards-45 [L-P13] POST /app-a/_search -> 200 (jq:.aggregations.by_script != null)
+ok 46 - os-single-dashboards-46 [L-P14] POST /app-a/_bulk -> 413
+ok 47 - os-single-dashboards-47 [L-P15] POST /app-a/_search -> 200 (jq:.hits != null)
+ok 48 - os-single-dashboards-48 [L-P15] GET /app-a/_count -> 200 (jq:.count >= 1)
+ok 49 - os-single-dashboards-49 [L-P17] POST /_msearch -> 404
+ok 50 - os-single-dashboards-50 [L-P17] POST /app-a/_msearch -> 404
+ok 51 - os-single-dashboards-51 [L-P17] POST /app-a/_search/point_in_time -> 404
+ok 52 - os-single-dashboards-52 [L-P17] POST /_plugins/_asynchronous_search -> 404
+ok 53 - os-single-dashboards-53 [L-P18] POST /_search/scroll -> 404
+ok 54 - os-single-dashboards-54 [L-P19] DELETE /app-a -> 404
+ok 55 - os-single-dashboards-55 [L-P19] PUT /app-a/_doc/1 -> 404
+ok 56 - os-single-dashboards-56 [L-P19] POST /app-a/_delete_by_query -> 404
+ok 57 - os-single-dashboards-57 [L-P20] GET / -> 404
+ok 58 - os-single-dashboards-58 [L-P3] GET /app-a/_search?size=1 -> 200 (jq:.hits.total.value >= 1)
+ok 59 - os-single-dashboards-59 [L-P7] GET /secret/../app-a/_search -> 404
+ok 60 - os-single-dashboards-60 [L-P7] GET /_plugins/_security/../app-a/_search -> 404
+ok 61 - os-single-dashboards-61 [L-P7] GET //app-a/_search -> 404
+ok 62 - os-single-dashboards-62 [L-P5] GET /app-a/%5Fsearch -> 404
+ok 63 - os-single-dashboards-63 [L-O2] GET /_plugins/_security/authinfo -> 200 (jq:.user_name == "kibanaserver" and (.roles | index("kibana_server")) != null)
+ok 64 - os-single-dashboards-64 [L-K2] GET /app/login -> abort
+ok 65 - os-single-dashboards-65 [L-K2] GET /app/login -> 200
+ok 66 - os-single-dashboards-66 [L-K2] GET /api/status -> 401
+ok 67 - os-single-dashboards-67 [L-K2] GET /api/status -> 200 (jq:.status != null)
+ok 68 - os-single-dashboards-68 [L-K2] GET /api/status -> 401
+ok 69 - os-single-dashboards-69 [L-K2] POST /api/console/proxy?path=_cluster/settings&method=GET -> 403
+ok 70 - os-single-dashboards-70 [L-K2] POST /api/console/proxy?path=_cluster/settings&method=GET -> 200 (jq:.persistent != null)
+1..70
+# tests 70, failed 0, skipped 0

@@ -1,0 +1,70 @@
+TAP version 13
+# scenario: os-single (scenarios/os-single/expected.tsv)
+# running init-security.sh
+# up: project os-single
+# node: os01 at https://127.0.0.1:9200 (from inside the container)
+# clients: allowed from 10.231.1.0/24, denied from 10.231.2.0/24 (allowlist variables set to 10.231.1.0/24)
+ok 1 - os-single-01 [setup] PUT /app-a -> 200 (jq:.acknowledged == true)
+ok 2 - os-single-02 [setup] PUT /secret -> 200 (jq:.acknowledged == true)
+ok 3 - os-single-03 [L-O2] GET / -> 401
+ok 4 - os-single-04 [L-O2] GET /_plugins/_security/authinfo -> 200 (jq:.user_name == "admin" and (.roles | index("all_access")) != null)
+ok 5 - os-single-05 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 6 - os-single-06 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 7 - os-single-07 [L-O2] GET /_plugins/_security/authinfo -> 401
+ok 8 - os-single-08 [L-O3] GET /_plugins/_security/authinfo -> 200 (jq:.user_name == "app_x" and (.roles | index("app_writer")) != null)
+ok 9 - os-single-09 [L-M1] GET /_nodes/jvm?filter_path=nodes.*.jvm.mem.heap_max_in_bytes -> 200 (jq:[.nodes[].jvm.mem.heap_max_in_bytes] == [1073741824])
+ok 10 - os-single-10 [L-C1] GET /_nodes/os?filter_path=nodes.*.os.allocated_processors -> 200 (jq:[.nodes[].os.allocated_processors] == [1])
+ok 11 - os-single-11 [health] GET /_cluster/health -> 200 (jq:.status != "red")
+ok 12 - os-single-12 [L-O3] POST /app-a/_bulk?refresh=true -> 200 (jq:.errors == false)
+ok 13 - os-single-13 [L-O3] POST /app-a/_bulk?refresh=true -> 200 (jq:.errors == true and .items[0].index.status == 403)
+ok 14 - os-single-14 [L-O3] GET /secret/_search -> 403
+ok 15 - os-single-15 [L-O3] PUT /app-b -> 403
+ok 16 - os-single-16 [L-O3] DELETE /app-a -> 403
+ok 17 - os-single-17 [L-P1] GET /app-a/_search -> abort
+ok 18 - os-single-18 [L-P1] GET /app-a/_search -> abort
+ok 19 - os-single-19 [L-P2] GET /app-a/_search -> 401
+ok 20 - os-single-20 [L-P3] GET /app-a/_search -> 200 (jq:.hits.total.value >= 1)
+ok 21 - os-single-21 [L-P3] POST /app-a/_count -> 200 (jq:.count >= 1)
+ok 22 - os-single-22 [L-P4] GET /_cluster/settings -> 404
+ok 23 - os-single-23 [L-P4] GET /_cat/indices -> 404
+ok 24 - os-single-24 [L-P4] GET /_nodes -> 404
+ok 25 - os-single-25 [L-P4] GET /_plugins/_security/api/internalusers -> 404
+ok 26 - os-single-26 [L-P4] GET /_plugins/_security/authinfo -> 404
+ok 27 - os-single-27 [L-P4] GET /_opendistro/_security/api/internalusers -> 404
+ok 28 - os-single-28 [L-P4] GET /_snapshot -> 404
+ok 29 - os-single-29 [L-P4] POST /_plugins/_sql -> 404
+ok 30 - os-single-30 [L-P5] GET /%5Fcluster/settings -> 404
+ok 31 - os-single-31 [L-P5] GET /%5fcluster/settings -> 404
+ok 32 - os-single-32 [L-P6] GET /_CLUSTER/settings -> 404
+ok 33 - os-single-33 [L-P7] GET //_cluster/settings -> 404
+ok 34 - os-single-34 [L-P7] GET /./_cluster/settings -> 404
+ok 35 - os-single-35 [L-P7] GET /app-a/../_cluster/settings -> 404
+ok 36 - os-single-36 [L-P7] GET /app-a/%2E%2E/_cluster/settings -> 404
+ok 37 - os-single-37 [L-P8] GET /app-a,secret/_search -> 404
+ok 38 - os-single-38 [L-P8] GET /app-a%2Csecret/_search -> 404
+ok 39 - os-single-39 [L-P9] GET /app-*/_search -> 404
+ok 40 - os-single-40 [L-P9] GET /app-a%2A/_search -> 404
+ok 41 - os-single-41 [L-P9] GET /*/_search -> 404
+ok 42 - os-single-42 [L-P9] GET /_all/_search -> 404
+ok 43 - os-single-43 [L-P10] GET /%3Capp-%7Bnow%2Fd%7D%3E/_search -> 404
+ok 44 - os-single-44 [L-P12] POST /app-a/_bulk -> 200 (jq:.errors == true and .items[0].index.status == 403)
+ok 45 - os-single-45 [L-P13] POST /app-a/_search -> 200 (jq:.aggregations.by_script != null)
+ok 46 - os-single-46 [L-P14] POST /app-a/_bulk -> 413
+ok 47 - os-single-47 [L-P15] POST /app-a/_search -> 200 (jq:.hits != null)
+ok 48 - os-single-48 [L-P15] GET /app-a/_count -> 200 (jq:.count >= 1)
+ok 49 - os-single-49 [L-P17] POST /_msearch -> 404
+ok 50 - os-single-50 [L-P17] POST /app-a/_msearch -> 404
+ok 51 - os-single-51 [L-P17] POST /app-a/_search/point_in_time -> 404
+ok 52 - os-single-52 [L-P17] POST /_plugins/_asynchronous_search -> 404
+ok 53 - os-single-53 [L-P18] POST /_search/scroll -> 404
+ok 54 - os-single-54 [L-P19] DELETE /app-a -> 404
+ok 55 - os-single-55 [L-P19] PUT /app-a/_doc/1 -> 404
+ok 56 - os-single-56 [L-P19] POST /app-a/_delete_by_query -> 404
+ok 57 - os-single-57 [L-P20] GET / -> 404
+ok 58 - os-single-58 [L-P3] GET /app-a/_search?size=1 -> 200 (jq:.hits.total.value >= 1)
+ok 59 - os-single-59 [L-P7] GET /secret/../app-a/_search -> 404
+ok 60 - os-single-60 [L-P7] GET /_plugins/_security/../app-a/_search -> 404
+ok 61 - os-single-61 [L-P7] GET //app-a/_search -> 404
+ok 62 - os-single-62 [L-P5] GET /app-a/%5Fsearch -> 404
+1..62
+# tests 62, failed 0, skipped 0
