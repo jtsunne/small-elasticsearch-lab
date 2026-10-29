@@ -1,0 +1,4 @@
+services:
+  es01:
+    environment:
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g

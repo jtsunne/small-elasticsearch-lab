@@ -1,0 +1,16 @@
+experiment: L-M2, scenarios/bad-heap, synthetic bulk load, first live use of bench/loader
+host: laptop-6c16g-nvme-01 (the author's laptop, see host.txt)
+run_utc: bad 2026-10-29T02:19:56Z to 02:24:01Z, control 02:25:04Z to 02:27:37Z (first and last monitor sample; the monitor files print local time, UTC-5)
+repo_commit: 1203a13 (scenarios/bad-heap and bench/loader unchanged since 7f37452)
+script: an ad hoc predecessor of bench/l-m2.sh, same parameters; not committed because it held operator paths
+engine: Elasticsearch 9.5.5, ES_IMAGE as pinned in versions.env
+node: scenarios/bad-heap/compose.yaml plus compose.bench.yaml: single node, cpus 1, cpuset 1 (BENCH_ES_CPUSET default), mem_limit 2g, bootstrap.memory_lock true, security on, published on 127.0.0.1:9200, loader on the host without CPU pinning
+heaps: bad -Xms1536m -Xmx1536m (compose.yaml), control -Xms1g -Xmx1g (control.yaml override)
+docs: 3000000 per run, about 670 bytes of source each, 2008963499 source bytes
+generator: awk with srand(42), each message 110 draws of int(rand()*47)+1 over a list of 43 words (draws past 43 add an empty word, so messages contain double spaces; kept as run), piped to the loader on stdin; awk implementation not recorded (bench/l-m2.sh records it)
+index: lm2, created by the first bulk request, dynamic mapping, defaults (1 shard, 1 replica that cannot be assigned on one node, refresh 1s)
+loader: bulk, -clients 2, -bulk-size 1000, -input -, no retries needed
+monitor: every 10 s, docker inspect state plus anon and file from memory.stat and memory.events inside the container; shmem and swap were not sampled
+data_path: a directory on the host's /tmp, which is tmpfs (host.txt data_fs_type). The index files therefore lived in RAM, and the kernel charges tmpfs pages to the container's memory cgroup, where memory.stat counts them under file. The file values in the monitor files are index data in RAM plus page cache, not page cache over a disk. bench/l-m2.sh refuses tmpfs; repeat on a disk-backed directory before reading the memory split as page cache.
+host_record: host.txt was captured with bench/host-info.sh on the same host about ten minutes after the run, not by the run itself; repo_commit there is dirty because of uncommitted documentation work, and the kernel build suffix was removed
+files: <label>-heap.json (_nodes/jvm heap max), <label>-loader.json (loader stdout), <label>-summary.csv, <label>-requests.jsonl (one line per bulk request), <label>-loader.err (empty), <label>-monitor.txt, <label>-final-state.txt, <label>-index.txt (_cat/indices), <label>-container-tail.txt (last 30 lines of the container log only), control.yaml, log.txt (compose output)

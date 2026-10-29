@@ -1,6 +1,6 @@
 # bench
 
-Benchmark tooling for the sizing page of the guide. Nothing here has been run against a real cluster yet: the loader is tested against fake HTTP servers only, and `run.sh` has only been exercised with a stubbed `docker` command and a fake node. Results: not yet measured.
+Benchmark tooling for the sizing page of the guide. The loader's `bulk` command ran against a real Elasticsearch 9.5.5 node for the first time on 2026-10-29 (L-M2, see "Validation status"); everything else here has been tested against fake HTTP servers only, and `run.sh` has only been exercised with a stubbed `docker` command and a fake node. Benchmark results (L-B1 to L-B4): not yet measured.
 
 | Path | What it is |
 |---|---|
@@ -10,9 +10,14 @@ Benchmark tooling for the sizing page of the guide. Nothing here has been run ag
 | `fetch-corpus.sh` | Downloads and verifies a corpus into `bench/corpus/` (git-ignored). |
 | `host-info.sh` | Prints the host record. |
 | `run.sh` | Orchestrates size steps and repetitions, writes a result directory. |
+| `l-m2.sh` | Lab test L-M2: the same bulk load into `scenarios/bad-heap` with a too-large and a correct heap, see below. |
 | `results/` | One directory per run series, see below. |
 
 ## Validation status
+
+Validated against a live engine, 2026-10-29, host `laptop-6c16g-nvme-01`, Elasticsearch 9.5.5, single node with security on: `loader bulk` with basic auth as `elastic`, plain HTTP on `127.0.0.1:9200`, 2 clients, bulk size 1000, NDJSON on stdin (`-input -`), an index created by the first bulk request (no `-mapping`), `-label`, `-out` (one JSON line per request) and `-summary` (CSV). Two runs of 3,000,000 documents each: every document accepted, no failed request, no 429, no retry, and `index_docs` in the summary equals `docs.count` from `_cat/indices` afterwards. Evidence: `bench/results/2026-10-29-laptop-6c16g-nvme-01-es-9.5.5-lm2/`.
+
+Still unvalidated against a live engine: everything on OpenSearch; `loader search` and the query sets; `-mapping`, `-recreate`, `-refresh-interval` and `-setting` (index creation from the profiles below); `-max-store-bytes` and `-max-docs`; `-skip-docs`, `-repeat` and compressed input; `-ca` and `-insecure` (no TLS endpoint was used); the 429 retry path (no 429 happened); `fetch-corpus.sh`; `run.sh`; `l-m2.sh` itself (see below).
 
 The mapping profiles and query sets are **unvalidated**: they parse and their variables resolve (checked by `go test`), but none has been sent to Elasticsearch 9.5.5 or OpenSearch 3.9.0. Points that need a live check:
 
@@ -21,6 +26,23 @@ The mapping profiles and query sets are **unvalidated**: they parse and their va
 - All explicit profiles use `dynamic: strict`, so a document with an unexpected field is rejected and shows up as a `strict_dynamic_mapping_exception` count rather than being indexed silently.
 - `index.requests.cache.enable: false` in every profile, so that repeated aggregations measure work, not the shard request cache.
 - OpenSearch profiles are the same files as the Elasticsearch ones. OpenSearch has no `logsdb` index mode; no OpenSearch equivalent is offered, and `run.sh` refuses `--mapping logsdb` with `--engine os`.
+
+## l-m2.sh
+
+```sh
+make loader
+bench/l-m2.sh --out bench/results/<date>-<host-id>-es-9.5.5-lm2 --data-dir /mnt/esbench
+```
+
+Lab test L-M2 (plan 5.3): does a 1536 MiB heap in a 2 GiB container get OOM-killed under bulk load, or does it survive and starve? The script starts `scenarios/bad-heap` with `compose.bench.yaml` twice under its own compose project names, once with the "bad" heap and once with the "control" heap, generates the same synthetic documents for both (awk, fixed seed, about 670 bytes each, dynamic mapping, default refresh), loads them with `loader bulk`, and records per label: the heap the node reports (the run stops if it is not the requested one), the loader summary and per-request lines, cgroup memory samples (`anon`, `file`, `shmem`, `file_mapped`, `memory.events`, `memory.swap.current`), the final OOM and restart state, `_cat/indices`, the last 30 container log lines, and the whole container log under `raw/` (git-ignored). `run.txt` holds the parameters, the awk implementation (gawk and mawk generate different documents from the same seed) and the filesystem type of the data directory.
+
+Parameters are environment variables whose defaults are the values of the 2026-10-29 run: `LM2_DOCS` 3000000, `LM2_SEED` 42, `LM2_CLIENTS` 2, `LM2_BULK_SIZE` 1000, `LM2_BAD_HEAP` 1536m, `LM2_CONTROL_HEAP` 1g, `LM2_TIMEOUT` 1500 s, `LM2_SAMPLE_S` 10 s; the node's CPU comes from `BENCH_ES_CPUSET` (default 1) in `compose.bench.yaml`. `l-m2.sh -h` lists them.
+
+It refuses to start, listing everything missing, without Linux and cgroup v2, a reachable Docker daemon and Compose v2, the loader binary, `vm.max_map_count` of 1048576, a free `127.0.0.1:9200`, a new `--out` directory, and a `--data-dir` that is writable and not on tmpfs or ramfs. The 2026-10-29 run kept its data on tmpfs, which put the index files into the container's memory accounting; the script exists so the run can be repeated on a disk. The data directory must be writable by uid 1000 or gid 0 inside the container (see `scenarios/es-single/README.md`).
+
+The `elastic` password is generated per run, kept in a mode 600 file inside a private temporary directory for compose, passed to curl on stdin and to the loader through `LOADER_PASSWORD`, and removed on exit. On exit, normal or not, the script also removes its containers, networks and the two data directories (keep them with `--keep-data`).
+
+Status: `bash -n` and the refusal paths were checked; the script has not run end to end. The 2026-10-29 results were produced by its ad hoc predecessor with the same parameters.
 
 ## Corpora
 
@@ -61,8 +83,8 @@ Output: one JSON line per request with `-out`, one CSV row per run (and per quer
 ## run.sh
 
 ```sh
-bench/run.sh --engine es --host-id laptop-6c32g-nvme-01 --host-class laptop --data-fs /mnt/esbench
-bench/run.sh --engine es --host-id laptop-6c32g-nvme-01 --data-fs /mnt/esbench --mode sweep --reps 3
+bench/run.sh --engine es --host-id laptop-6c16g-nvme-01 --host-class laptop --data-fs /mnt/esbench
+bench/run.sh --engine es --host-id laptop-6c16g-nvme-01 --data-fs /mnt/esbench --mode sweep --reps 3
 ```
 
 `steps` mode (default) runs, for each repetition on a freshly reset cluster: ingest to 1, 10 and 30 GB of primary store with fixed bulk size, clients and refresh interval (L-B1), and after each step the query set at each concurrency level for the given duration (L-B2), with an optional cold-cache pass (`--cold`: container restart, plus `drop_caches` only if passwordless sudo is available, recorded either way). `sweep` mode runs the L-B1 sweep: bulk size 100, 500, 1000 and 5000, one and two clients, refresh 1 s and 30 s, each to `--sweep-gb` GB on a recreated index. The mixed load (L-B3) and the disk expansion series (L-B4) are not automated yet.

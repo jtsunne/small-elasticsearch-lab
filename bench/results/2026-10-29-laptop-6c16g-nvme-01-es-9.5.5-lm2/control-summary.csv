@@ -1,0 +1,2 @@
+run_id,label,op,query,index,bulk_size,clients,refresh_interval,duration_s,requests,failed_requests,docs_ok,docs_failed,src_bytes,docs_per_s,ops_per_s,bytes_per_s,p50_ms,p90_ms,p99_ms,max_ms,http_429,item_429,retries,store_bytes,index_docs,errors
+20261029T022504Z,control,bulk,,lm2,1000,2,,159.878,3000,0,3000000,0,2008963499,18764.337,18.764,12565622.478,88.278,179.712,260.872,1116.677,0,0,0,1388325044,3000000,

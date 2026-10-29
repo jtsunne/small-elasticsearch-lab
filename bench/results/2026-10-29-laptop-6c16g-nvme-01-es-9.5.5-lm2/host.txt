@@ -1,0 +1,55 @@
+record_date: 2026-10-29T02:34:48Z
+host_id: laptop-6c16g-nvme-01
+host_class_declared: laptop
+dmi_chassis_type: 9 (portable)
+virtualization: none
+cloud_instance_type: n/a
+cloud_region: n/a
+power_supply: n/a
+cpu_model: Intel(R) Core(TM) i7-8700B CPU @ 3.20GHz
+cpu_sockets: 1
+cpu_cores_per_socket: 6
+cpu_threads_per_core: 2
+cpu_logical: 12
+smt_active: 1
+cpu_base_clock: 3200 MHz
+cpu_max_clock: 4600 MHz
+cpufreq_driver: intel_pstate
+cpu_governor: powersave
+energy_perf_preference: performance
+intel_no_turbo: 0
+cpu_microcode: 0xfa
+ram_total: 15828 MiB
+ram_speed: n/a
+swap_total: 31656 MiB
+vm_swappiness: 150
+vm_max_map_count: 1048576
+kernel: 7.2.11-arch1 (custom build suffix removed)
+os: Omarchy
+cgroup_version: v2
+docker_client: 29.9.1
+docker_compose: 5.6.0
+docker_engine: 29.9.1
+data_path: /tmp
+data_fs_mountpoint: /tmp
+data_fs_type: tmpfs
+data_fs_options: rw,nosuid,nodev,nr_inodes=1048576,inode64,huge=advise,usrquota
+data_fs_size: 7.7 GiB
+data_disk_model: n/a
+pinned_es_image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5@sha256:13b4a40bb095774f5fda635e45fd5677cc6a26565e42b24997b0c72b88e75984
+local_es_image_digest: docker.elastic.co/elasticsearch/elasticsearch@sha256:13b4a40bb095774f5fda635e45fd5677cc6a26565e42b24997b0c72b88e75984
+pinned_kibana_image: docker.elastic.co/kibana/kibana:9.5.5@sha256:13b72ce7222c36e4213229004ae62a87aeb32fd372ebfa6fb38f7a3285fdbb78
+local_kibana_image_digest: docker.elastic.co/kibana/kibana@sha256:13b72ce7222c36e4213229004ae62a87aeb32fd372ebfa6fb38f7a3285fdbb78
+pinned_opensearch_image: opensearchproject/opensearch:3.9.0@sha256:3b55f6b6249cfdb92b52ee59adc8a266203ba9ef9f5d82544fad6f1af2f3609e
+local_opensearch_image_digest: opensearchproject/opensearch@sha256:3b55f6b6249cfdb92b52ee59adc8a266203ba9ef9f5d82544fad6f1af2f3609e
+pinned_opensearch_dashboards_image: opensearchproject/opensearch-dashboards:3.9.0@sha256:256d4cea5928868ac09bca642a0ac8285a2b7e4b7fdd45c4ec06e75a5cf3184c
+local_opensearch_dashboards_image_digest: opensearchproject/opensearch-dashboards@sha256:256d4cea5928868ac09bca642a0ac8285a2b7e4b7fdd45c4ec06e75a5cf3184c
+pinned_caddy_image: caddy:2.11.7@sha256:504a44d7d74bd2bc28a66afc4774912fc21223ca8a67734af1c54ab2f999b489
+local_caddy_image_digest: caddy@sha256:504a44d7d74bd2bc28a66afc4774912fc21223ca8a67734af1c54ab2f999b489
+compose_sha256 scenarios/bad-heap/compose.yaml: 5f0afd6ddca63cbc6c4a4c6beec8b15f9b4b2ccfa9825ca18aca990c103394b0
+compose_sha256 scenarios/bad-heap/compose.bench.yaml: b316251f204146e6090b12796e54e00649834bec75a7a818cea20bb2d16ede66
+repo_commit: 1203a13301970be1cdc29dd1f78ad59280d9f931 (dirty)
+loader_commit: 8865da8ea4bd02bb2c9df42500d14b0dc40d1f98
+go_version: go1.27.3
+jvm: n/a (no cluster reachable)
+node_processors: n/a (no cluster reachable)
