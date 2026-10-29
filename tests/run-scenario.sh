@@ -423,11 +423,12 @@ else
 
 	if [ -x "$sdir/setup-roles.sh" ]; then
 		tap_diag "running setup-roles.sh"
+		"$sdir/setup-roles.sh" >"$work/setup.out" || die "setup-roles.sh failed (exit $?); no rows were run"
 		while IFS= read -r line; do
 			if [[ $line =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
 				testenv[${BASH_REMATCH[1]}]=${BASH_REMATCH[2]}
 			fi
-		done < <("$sdir/setup-roles.sh")
+		done <"$work/setup.out"
 	fi
 fi
 
@@ -471,6 +472,12 @@ while IFS= read -r line; do
 	fi
 	CUR_HASBODY=0
 	[ "$CUR_BODY" != none ] && CUR_HASBODY=1
+	# curl labels a --data-binary body application/x-www-form-urlencoded, which
+	# OpenSearch rejects with 406, so the type is always stated in the row.
+	if [ "$CUR_HASBODY" == 1 ] && ! grep -qiE '^[[:space:]]*content-type:' <<<"${headers//|/$'\n'}"; then
+		tap_not_ok "$CUR_DESC" "the row sends a body but no Content-Type header; add one to the headers column"
+		continue
+	fi
 	CUR_RESOLVE=-
 	CUR_TARGET=$path
 

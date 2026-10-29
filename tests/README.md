@@ -55,7 +55,11 @@ Tab-separated, 13 columns, one header line, `#` lines are comments, `-` means em
 | `fixtures/Caddyfile.plan` | Fails 8 rows. The plan's corrected Caddyfile, verbatim: the allowlist works, but `path_regexp` sees the decoded, cleaned path while `reverse_proxy` forwards the raw one, so `/_security/../app-a/_search`, `//app-a/_search`, `/app-a%2F_search` and encoded variants reach the upstream as written (P07e/f/k/l/m/n, P11a/b) |
 | `fixtures/Caddyfile.fixed` | Passes. The plan's handle nesting with the route matchers on the raw URI (`{http.request.uri}` in an `expression` matcher) |
 
-Observed with Caddy 2.11.7 in proxy-only mode, not yet in the lab: an `abort` closes the connection without a response (curl exit 52, 55 or 56); `reverse_proxy` forwards the raw request-target, percent-encoding and dot segments included; an absolute-form request is forwarded in origin form; an HTTP/1.0 client is forwarded as HTTP/1.1. Over the 20 MB `request_body` limit the client gets 413, but Caddy has already streamed the first 20000000 bytes to the upstream, which then sees the request end early (`unexpected EOF`). Whether Elasticsearch and OpenSearch discard such a truncated request is a lab question.
+Observed with Caddy 2.11.7 in proxy-only mode: an `abort` closes the connection without a response (curl exit 52, 55 or 56 over HTTP/1.1); `reverse_proxy` forwards the raw request-target, percent-encoding and dot segments included; an absolute-form request is forwarded in origin form; an HTTP/1.0 client is forwarded as HTTP/1.1. Over the 20 MB `request_body` limit the client gets 413, but Caddy has already streamed the first 20000000 bytes to the upstream, which then sees the request end early (`unexpected EOF`). Whether Elasticsearch and OpenSearch discard such a truncated request is a lab question.
+
+### How `abort` is recognised
+
+Caddy's `abort` sends no response; what curl reports depends on the protocol. Over HTTP/1.1 Caddy closes the connection: curl exits 52 (empty reply), 56 (reset while reading) or 55 (reset while still sending a large body). Over HTTP/2 the connection carries other streams, so Caddy resets only the request's stream, and curl exits 92 (`HTTP/2 stream ... was not closed cleanly`). The scenario clients use HTTPS, negotiate HTTP/2 through ALPN and therefore see 92; the proxy-only mode speaks plain HTTP/1.1 and sees 52 to 56. `http_classify` in `lib.sh` maps 52, 55 and 56 to `abort` always, and 92 only when curl printed no status (`000`), because 92 also covers a stream that fails after a response has started; that case stays `error:curl-92`. Every other curl failure is `error:curl-N`, except 7 (`refused`) in the scenario runner. Observed in the first lab run (2026-10-29, ES 9.5.5, Caddy 2.11.7): every denied-client row got curl 92, and so did an absolute-form request line (`GET http://es01:9200/...`), which Caddy rejects over HTTP/2 before it reaches the node.
 
 ## `expected.tsv` format (scenarios)
 
@@ -70,9 +74,9 @@ Tab-separated, one header line, `#` lines are comments, `-` means none. Columns 
 | `auth` | `none`; `elastic` (`ELASTIC_PASSWORD`); `admin` (`ADMIN_PASSWORD`); `app_user` (user `APP_USER` from the environment or `.env`, default `app_x`; `APP_PASSWORD`); `app_key` (`ApiKey` with `APP_API_KEY`); `bad_key` (a well-formed invalid API key); `demo_<user>` (password equal to the user name); generic forms `user/VAR` (password from `VAR`), `user=password`, `apikey/VAR` |
 | `method` | Request method |
 | `path` | Request-target, sent verbatim |
-| `headers` | `Name: value` items separated by `\|` |
+| `headers` | `Name: value` items separated by `\|`. A row with a body must name its `Content-Type`: curl would otherwise label the body `application/x-www-form-urlencoded`, which OpenSearch rejects with 406. The runner fails such a row without sending it, also with `--plan-only` |
 | `body` | `-`, a file relative to the scenario (`@bodies/x.json` or `bodies/x.json`), `bytes:N` or `zeros:N` (N bytes), `inline:TEXT` |
-| `expect_status` | A status, `abort` (connection closed without a response), `refused` (connection refused); alternatives with `\|` |
+| `expect_status` | A status, `abort` (no HTTP response: connection closed, or HTTP/2 stream reset; see below), `refused` (connection refused); alternatives with `\|` |
 | `expect` | `-`, `jq:EXPR` (`jq -e` on the body), `contains:TEXT`, `!contains:TEXT`, `record` (body saved next to the TAP file). A column named `expect_jq` holding a bare jq expression is accepted instead |
 | `note` | Optional free text |
 
@@ -90,10 +94,10 @@ It refuses when the Docker daemon is unreachable, then:
 1. runs `init-env.sh` if `.env` is missing, `certs/gen-certs.sh` if `certs/` has no `.pem`, `init-security.sh` if present;
 2. exports every variable in `TEST_ALLOWLIST_VARS` (default `ALLOWED_CIDRS ALLOW_CIDRS`) as `TEST_ALLOWED_SUBNET` (default `10.231.1.0/24`) and runs `docker compose up -d --wait`;
 3. creates two networks, `<project>-test-allowed` and `<project>-test-denied` (`TEST_DENIED_SUBNET`, default `10.231.2.0/24`), and connects the `caddy` service to both;
-4. runs `setup-roles.sh` if present and keeps the `KEY=VALUE` lines it prints;
+4. runs `setup-roles.sh` if present and keeps the `KEY=VALUE` lines it prints; if it fails, the run stops before any row (exit 2) instead of failing every row that needs its output. The `setup-roles.sh` scripts wait for cluster health themselves (see their scenario READMEs); the runner's own readiness check is only `compose up --wait`;
 5. runs the rows; proxy-site rows come from a throwaway container on the allowed or denied network (the node image, which has curl and bash), with the site name resolved to Caddy's address on that network;
 6. removes the networks and runs `down -v`, unless `--keep-up`.
 
 Client containers are used instead of host requests because Caddy's `remote_ip` sees the immediate TCP peer: through Docker's userland proxy a request from the host arrives from the bridge gateway, so a denied client on the host is not possible. Credentials reach curl as a config on stdin, never through argv. The TAP output is also written to `results/tests/<date>-<scenario>.tap`, recorded bodies to `results/tests/<date>-<scenario>/`.
 
-Status: `run-scenario.sh` and `--lab` mode have not run against Docker or an engine yet. Proxy-only mode, `selftest.sh`, `--plan-only` on every `expected.tsv` and the echo upstream tests have run.
+Status: `run-scenario.sh` ran against Docker for the first time on 2026-10-29 (`es-single`, `es-single-kibana`, `os-single`, `os-single-dashboards`, `es-three-local`). Its findings (curl 92 on HTTP/2 aborts, OpenSearch's `Content-Type` check, the startup race in `setup-roles.sh`, the bulk `index` action under `create_doc`, the Kibana console route) are fixed in the files; the rerun is pending. `--lab` mode has not run against an engine yet. Proxy-only mode, `selftest.sh`, `--plan-only` on every `expected.tsv` and the echo upstream tests have run.

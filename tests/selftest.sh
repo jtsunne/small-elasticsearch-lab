@@ -60,6 +60,9 @@ assert_eq "$(http_classify 0 404)" 404 "classify: status"
 assert_eq "$(http_classify 52 000)" abort "classify: empty reply is abort"
 assert_eq "$(http_classify 55 000)" abort "classify: reset while sending is abort"
 assert_eq "$(http_classify 56 000)" abort "classify: reset while reading is abort"
+assert_eq "$(http_classify 92 000)" abort "classify: HTTP/2 stream reset before any response is abort"
+assert_eq "$(http_classify 92 200)" error:curl-92 "classify: HTTP/2 stream error after a status is not abort"
+assert_eq "$(http_classify 92 '')" abort "classify: HTTP/2 stream reset with no status output is abort"
 assert_eq "$(http_classify 7 000)" error:curl-7 "classify: connection refused is an error"
 
 echo_bin=${ECHO_UPSTREAM:-}

@@ -83,13 +83,22 @@ assert_jq() {
 
 # http_classify CURL_EXIT STATUS: abort when the server closed the connection
 # without an HTTP response (Caddy's abort directive), the status otherwise.
-# 52 is an empty reply, 56 a reset while reading, 55 a reset while curl was
-# still sending a large body.
+# Over HTTP/1.1: 52 is an empty reply, 56 a reset while reading, 55 a reset
+# while curl was still sending a large body. Over HTTP/2 Caddy's abort resets
+# the stream, which curl reports as 92; 92 also covers stream errors after a
+# response started, so it counts as abort only when no status line arrived.
 http_classify() {
 	local rc=$1 status=$2
 	case $rc in
 	0) printf '%s' "$status" ;;
 	52 | 55 | 56) printf 'abort' ;;
+	92)
+		if [ "${status:-000}" == 000 ]; then
+			printf 'abort'
+		else
+			printf 'error:curl-92'
+		fi
+		;;
 	*) printf 'error:curl-%s' "$rc" ;;
 	esac
 }
