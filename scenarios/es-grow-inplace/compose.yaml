@@ -1,0 +1,129 @@
+# Procedure B, state after growth: es01 keeps its data and cluster UUID, loses
+# discovery.type single-node and gains transport TLS; es02 and es03 join it with
+# empty data paths. No node sets cluster.initial_master_nodes: the cluster was
+# bootstrapped once, by es01 in single-node mode, and must never bootstrap
+# again. Start from step-0-seed.sh, not from this file. Lab only: three nodes
+# on one host.
+name: es-grow-inplace
+
+x-cluster-env: &cluster-env
+  cluster.name: es-grow-inplace
+  node.roles: master,data,ingest
+  discovery.seed_hosts: es01,es02,es03
+  path.repo: /usr/share/elasticsearch/snapshots
+  xpack.security.enabled: "true"
+  xpack.security.http.ssl.enabled: "false"
+  xpack.security.transport.ssl.enabled: "true"
+  xpack.security.transport.ssl.verification_mode: certificate
+  xpack.security.transport.ssl.key: certs/node-key.pem
+  xpack.security.transport.ssl.certificate: certs/node.pem
+  xpack.security.transport.ssl.certificate_authorities: certs/ca.pem
+  xpack.license.self_generated.type: basic
+  bootstrap.memory_lock: "true"
+  ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+  ES_JAVA_OPTS: ${ES_HEAP_OPTS--Xms1g -Xmx1g}
+
+x-es-node: &es-node
+  image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+  cpus: 1
+  mem_limit: 2g
+  ulimits:
+    memlock:
+      soft: -1
+      hard: -1
+    nofile:
+      soft: 65535
+      hard: 65535
+  networks:
+    - backend
+  healthcheck:
+    test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+    interval: 10s
+    timeout: 10s
+    retries: 30
+    start_period: 30s
+
+x-snapshots: &snapshots
+  type: bind
+  source: ${SNAPSHOT_DIR:?set SNAPSHOT_DIR in .env}
+  target: /usr/share/elasticsearch/snapshots
+  bind:
+    create_host_path: false
+
+x-ca: &ca
+  type: bind
+  source: ./certs/ca.pem
+  target: /usr/share/elasticsearch/config/certs/ca.pem
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  es01:
+    <<: *es-node
+    environment:
+      <<: *cluster-env
+      node.name: es01
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es01.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es01-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  es02:
+    <<: *es-node
+    environment:
+      <<: *cluster-env
+      node.name: es02
+    volumes:
+      - esdata02:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es02.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es02-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  es03:
+    <<: *es-node
+    environment:
+      <<: *cluster-env
+      node.name: es03
+    volumes:
+      - esdata03:/usr/share/elasticsearch/data
+      - *snapshots
+      - *ca
+      - {type: bind, source: ./certs/es03.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es03-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE comes from versions.env}
+    depends_on:
+      es01:
+        condition: service_healthy
+      es02:
+        condition: service_healthy
+      es03:
+        condition: service_healthy
+    environment:
+      - ES_SITE_ADDRESS=${ES_SITE_ADDRESS:?set ES_SITE_ADDRESS in .env}
+      - ALLOWED_CIDRS=${ALLOWED_CIDRS:?set ALLOWED_CIDRS in .env}
+      - ES_UPSTREAMS=es01:9200 es02:9200 es03:9200
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+networks:
+  backend: {}
+
+volumes:
+  esdata01: {}
+  esdata02: {}
+  esdata03: {}
+  caddy_data: {}
+  caddy_config: {}

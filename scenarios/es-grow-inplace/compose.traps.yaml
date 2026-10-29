@@ -1,0 +1,43 @@
+# Lab traps, used only by trap.sh together with compose.yaml. Never part of the
+# procedure.
+#   L-G4: es01 restarted with seed hosts and transport TLS but still
+#         discovery.type single-node.
+#   L-G3: es04, a new node that wrongly sets cluster.initial_master_nodes.
+name: es-grow-inplace
+
+services:
+  es01:
+    environment:
+      discovery.type: single-node
+
+  es04:
+    image: ${ES_IMAGE:?ES_IMAGE comes from versions.env}
+    profiles: [trap]
+    environment:
+      node.name: es04
+      cluster.name: es-grow-inplace
+      node.roles: master,data,ingest
+      discovery.seed_hosts: es01,es02,es03
+      cluster.initial_master_nodes: es04
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.verification_mode: certificate
+      xpack.security.transport.ssl.key: certs/node-key.pem
+      xpack.security.transport.ssl.certificate: certs/node.pem
+      xpack.security.transport.ssl.certificate_authorities: certs/ca.pem
+      xpack.license.self_generated.type: basic
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      ES_JAVA_OPTS: ${ES_HEAP_OPTS--Xms1g -Xmx1g}
+    cpus: 1
+    mem_limit: 2g
+    volumes:
+      - esdata04:/usr/share/elasticsearch/data
+      - {type: bind, source: ./certs/ca.pem, target: /usr/share/elasticsearch/config/certs/ca.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es04.pem, target: /usr/share/elasticsearch/config/certs/node.pem, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: ./certs/es04-key.pem, target: /usr/share/elasticsearch/config/certs/node-key.pem, read_only: true, bind: {create_host_path: false}}
+    networks:
+      - backend
+
+volumes:
+  esdata04: {}
