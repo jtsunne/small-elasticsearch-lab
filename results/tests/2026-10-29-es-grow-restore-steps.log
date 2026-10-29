@@ -1,0 +1,168 @@
+##### ./step-0-seed.sh
+==> creating the snapshot directory scenarios/es-grow-restore/./snapshots (owner <user>, group 0, mode 2770)
+==> starting es00 and caddy
+ Network es-grow-restore_backend Creating 
+ Network es-grow-restore_backend Creating 
+ Volume es-grow-restore_caddy_data Creating 
+ Volume es-grow-restore_caddy_data Creating 
+ Volume es-grow-restore_esdata00 Creating 
+ Volume es-grow-restore_esdata00 Creating 
+ Volume es-grow-restore_caddy_config Creating 
+ Volume es-grow-restore_caddy_config Creating 
+ Volume es-grow-restore_caddy_data Created 
+ Volume es-grow-restore_caddy_data Created 
+ Volume es-grow-restore_caddy_config Created 
+ Volume es-grow-restore_caddy_config Created 
+ Volume es-grow-restore_esdata00 Created 
+ Volume es-grow-restore_esdata00 Created 
+ Network es-grow-restore_backend Created 
+ Network es-grow-restore_backend Created 
+ Container es-grow-restore-es00-1 Creating 
+ Container es-grow-restore-es00-1 Created 
+ Container es-grow-restore-caddy-1 Creating 
+ Container es-grow-restore-caddy-1 Created 
+ Container es-grow-restore-es00-1 Starting 
+ Container es-grow-restore-es00-1 Started 
+ Container es-grow-restore-es00-1 Waiting 
+ Container es-grow-restore-es00-1 Healthy 
+ Container es-grow-restore-caddy-1 Starting 
+ Container es-grow-restore-caddy-1 Started 
+ Container es-grow-restore-caddy-1 Waiting 
+ Container es-grow-restore-es00-1 Waiting 
+ Container es-grow-restore-es00-1 Healthy 
+ Container es-grow-restore-caddy-1 Healthy 
+==> index template app (1 shard, 0 replicas), role app_writer, user app_x
+==> loading 1000 documents into app-b
+==> creating the app API key (30 days, owned by elastic, scoped by role_descriptors)
+==> es00 holds:
+app-a 1
+app-b 1000
+##### rc=0: ./step-0-seed.sh
+##### ./step-1-repo.sh
+==> registering repository grow on es00 (type fs, location grow under path.repo, writable)
+==> verifying the repository from every node of es00's cluster
+{"ef881Zg8T02FI9XEvDplXg":"es00"}
+##### rc=0: ./step-1-repo.sh
+##### ./step-2-snapshot.sh
+==> taking snapshot grow-1 of app-* plus the security feature state (users, roles, API keys)
+state SUCCESS, indices .security-7,app-a,app-b, features security
+==> es00 document counts at this point:
+app-a 1
+app-b 1000
+##### rc=0: ./step-2-snapshot.sh
+##### ./step-3-new-cluster.sh
+==> starting es01, es02, es03 (cluster es-grow-new)
+ Volume es-grow-restore_esdata03 Creating 
+ Volume es-grow-restore_esdata02 Creating 
+ Volume es-grow-restore_esdata02 Creating 
+ Volume es-grow-restore_esdata03 Creating 
+ Volume es-grow-restore_esdata01 Creating 
+ Volume es-grow-restore_esdata01 Creating 
+ Volume es-grow-restore_esdata02 Created 
+ Volume es-grow-restore_esdata02 Created 
+ Container es-grow-restore-es02-1 Creating 
+ Volume es-grow-restore_esdata03 Created 
+ Volume es-grow-restore_esdata03 Created 
+ Container es-grow-restore-es03-1 Creating 
+ Volume es-grow-restore_esdata01 Created 
+ Volume es-grow-restore_esdata01 Created 
+ Container es-grow-restore-es01-1 Creating 
+ Container es-grow-restore-es02-1 Created 
+ Container es-grow-restore-es03-1 Created 
+ Container es-grow-restore-es01-1 Created 
+ Container es-grow-restore-es02-1 Starting 
+ Container es-grow-restore-es03-1 Starting 
+ Container es-grow-restore-es01-1 Starting 
+ Container es-grow-restore-es02-1 Started 
+ Container es-grow-restore-es03-1 Started 
+ Container es-grow-restore-es01-1 Started 
+ Container es-grow-restore-es02-1 Waiting 
+ Container es-grow-restore-es03-1 Waiting 
+ Container es-grow-restore-es01-1 Waiting 
+ Container es-grow-restore-es02-1 Healthy 
+ Container es-grow-restore-es03-1 Healthy 
+ Container es-grow-restore-es01-1 Healthy 
+==> es00 cluster_uuid JpxbehLlSnqu-0ABsY340w, new cluster_uuid xK7tndfsRZS-ZlHvguP-WQ: two separate clusters, as intended
+==> registering repository grow on the new cluster as read-only
+{"1zB0y4-BS1KNSWnG9rUFPg":"es03","E1j7NE89QHeuNGy7MTSC1A":"es01","rtTUj-qQSvau5gZ8qNsypQ":"es02"}
+grow-1 SUCCESS
+##### rc=0: ./step-3-new-cluster.sh
+##### ./step-4-restore.sh grow-1
+==> index template app on the new cluster: 1 shard, 1 replica
+==> restoring grow-1: app-*, security feature state, replicas 1, write block cleared
+==> restore and replica recovery took 5s
+index              es00        new
+app-a                 1          1
+app-b              1000       1000
+==> document counts match
+{"app-b":{"settings":{"index":{"blocks":{"write":"false"},"number_of_replicas":"1"}}},"app-a":{"settings":{"index":{"blocks":{"write":"false"},"number_of_replicas":"1"}}}}
+##### rc=0: ./step-4-restore.sh grow-1
+##### ./step-2-snapshot.sh --final
+==> blocking writes to app-* on es00: from here until cutover, application writes fail
+==> taking snapshot grow-final of app-* plus the security feature state (users, roles, API keys)
+state SUCCESS, indices .security-7,app-a,app-b, features security
+==> es00 document counts at this point:
+app-a 1
+app-b 1000
+##### rc=0: ./step-2-snapshot.sh --final
+##### ./step-4-restore.sh grow-final --replace
+==> deleting on the NEW cluster only (es-grow-new, xK7tndfsRZS-ZlHvguP-WQ): app-a app-b
+==> index template app on the new cluster: 1 shard, 1 replica
+==> restoring grow-final: app-*, security feature state, replicas 1, write block cleared
+==> restore and replica recovery took 5s
+index              es00        new
+app-a                 1          1
+app-b              1000       1000
+==> document counts match
+{"app-b":{"settings":{"index":{"blocks":{"write":"false"},"number_of_replicas":"1"}}},"app-a":{"settings":{"index":{"blocks":{"write":"false"},"number_of_replicas":"1"}}}}
+##### rc=0: ./step-4-restore.sh grow-final --replace
+##### ./step-5-cutover.sh
+==> unregistering repository grow on es00 (the files stay)
+==> registering repository grow on the new cluster as writable
+==> switching Caddy to es01 es02 es03 (Caddy is recreated: a few seconds without the proxy)
+ Container es-grow-restore-caddy-1 Recreate 
+ Container es-grow-restore-caddy-1 Recreated 
+ Container es-grow-restore-caddy-1 Starting 
+ Container es-grow-restore-caddy-1 Started 
+ Container es-grow-restore-caddy-1 Waiting 
+ Container es-grow-restore-caddy-1 Healthy 
+==> Caddy back after 2s, now proxying to the new cluster
+==> run the checks: COMPOSE_PROFILES=new NODE_SERVICE=es01 tests/run-scenario.sh --keep-up es-grow-restore
+##### rc=0: ./step-5-cutover.sh
+tests rc=0
+docker compose --project-directory scenarios/es-grow-restore --env-file versions.env --env-file scenarios/es-grow-restore/.env -f scenarios/es-grow-restore/compose.yaml down -v
+ Container es-grow-restore-es03-1 Stopping 
+ Container es-grow-restore-caddy-1 Stopping 
+ Container es-grow-restore-es02-1 Stopping 
+ Container es-grow-restore-es01-1 Stopping 
+ Container es-grow-restore-caddy-1 Stopped 
+ Container es-grow-restore-caddy-1 Removing 
+ Container es-grow-restore-caddy-1 Removed 
+ Container es-grow-restore-es00-1 Stopping 
+ Container es-grow-restore-es02-1 Stopped 
+ Container es-grow-restore-es02-1 Removing 
+ Container es-grow-restore-es01-1 Stopped 
+ Container es-grow-restore-es01-1 Removing 
+ Container es-grow-restore-es03-1 Stopped 
+ Container es-grow-restore-es03-1 Removing 
+ Container es-grow-restore-es00-1 Stopped 
+ Container es-grow-restore-es00-1 Removing 
+ Container es-grow-restore-es02-1 Removed 
+ Container es-grow-restore-es01-1 Removed 
+ Container es-grow-restore-es00-1 Removed 
+ Container es-grow-restore-es03-1 Removed 
+ Volume es-grow-restore_esdata03 Removing 
+ Volume es-grow-restore_esdata01 Removing 
+ Volume es-grow-restore_esdata02 Removing 
+ Volume es-grow-restore_esdata00 Removing 
+ Volume es-grow-restore_caddy_config Removing 
+ Volume es-grow-restore_caddy_data Removing 
+ Network es-grow-restore_backend Removing 
+ Volume es-grow-restore_esdata03 Removed 
+ Volume es-grow-restore_esdata01 Removed 
+ Volume es-grow-restore_esdata02 Removed 
+ Volume es-grow-restore_caddy_data Removed 
+ Network es-grow-restore_backend Removed 
+ Volume es-grow-restore_caddy_config Removed 
+ Volume es-grow-restore_esdata00 Removed 
+DONE

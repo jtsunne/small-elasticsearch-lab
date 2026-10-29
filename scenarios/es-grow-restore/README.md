@@ -2,7 +2,20 @@
 
 Growth procedure A, the recommended one: keep the single node as it is, take a snapshot of it into a shared filesystem repository, build a new three-node cluster next to it, restore, compare, and move Caddy over. The old node stays untouched until you decide to remove it, so rollback is pointing Caddy back.
 
-**Tested on: NOT YET TESTED.** This scenario was not part of the 2026-10-29 lab run, which covered `es-single`, `es-single-kibana`, `es-three-local`, `os-single` and `os-single-dashboards`. The files pass static checks only: `docker compose config` (with and without the `new` profile), `caddy validate`, `bash -n` on every script, `tests/run-scenario.sh --plan-only` and a proxy-only run of the Caddyfile. No step script has run against a real Elasticsearch, and no timing below is measured. Every expectation was written before a lab run (L-G1) and may be wrong. The readiness waits and the split `L-P12` rows were changed after the 2026-10-29 run, from what it showed on the other Elasticsearch scenarios; they are untested here.
+**Tested on 2026-10-29**, host `laptop-6c16g-nvme-01` (the author's laptop: Linux, cgroup v2, 6 cores / 12 threads, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with Elasticsearch 9.5.5 and Caddy 2.11.7 as pinned in `versions.env`. The runbook below ran once, in order, and every step exited 0: steps 0, 1, 2 (`grow-1`), 3, 4 (`grow-1`), 2 `--final`, 4 (`grow-final --replace`), 5. The end-state checks then passed 22 of 22 rows (`COMPOSE_PROFILES=new NODE_SERVICE=es01`, stack kept up), `results/tests/2026-10-29-es-grow-restore.tap`. The step output is `results/tests/2026-10-29-es-grow-restore-steps.log`. One laptop run with 1,001 documents is one data point, not a reference.
+
+Observed (L-G1):
+
+- Before cutover there were two clusters, as intended: es00 and the new cluster reported different `cluster_uuid` values (step 3 output).
+- Both snapshots ended `SUCCESS` with the indices `.security-7`, `app-a`, `app-b` and the feature state `security` (step 2 output, both runs).
+- Restore plus replica recovery took 5 s for `grow-1` and 5 s for `grow-final` (step 4 output). With 1,001 documents this times the mechanics, not the data; it says nothing about a real index.
+- Document counts matched after both restores (`app-a` 1, `app-b` 1000), and the restored indices had 1 replica and `index.blocks.write` `false` (step 4 output; rows `es-grow-restore-03`, `-06`).
+- Caddy was back 2 s after it was recreated at cutover (step 5 output).
+- Every hypothesis in step 4 held; see the notes there.
+
+Not measured or not tested: the write-blocked window (from `step-2-snapshot.sh --final` to the end of step 5; the step output carries no timestamps), how many client requests fail during the Caddy recreate (no client traffic ran during cutover), `rollback.sh`, decommissioning es00, the second restore without `--replace`, adding `path.repo` to a running single node by restart, and disk sizing.
+
+Operator notes from the run: run `./init-env.sh` before step 0; without `.env` step 0 stops (the first attempt that day did exactly that, an operator error, not a scenario defect). `snapshots/` is a bind-mounted directory that `docker compose down -v` does not delete, and step 2 keeps an existing snapshot of the same name, so remove `snapshots/` (and `.env`) before running the scenario again from step 0.
 
 **Lab only.** es00 and the three new nodes all run on one host; see `es-three-local` for why that gives no fault tolerance.
 
@@ -92,8 +105,8 @@ POST /_snapshot/grow/<snapshot>/_restore?wait_for_completion=true
 }
 ```
 
-- `index_settings` may change any index setting except `index.number_of_shards`, so the restored indices come back with one replica and without the write block that `--final` put on es00. Source: restore API page above. HYPOTHESIS: `index.blocks.write: false` in `index_settings` overrides the block stored in the snapshot; `expected.tsv` checks that a bulk write succeeds after cutover.
-- Restoring the security feature state "closes and overwrites the feature's existing indices": the new cluster's users, roles and API keys become es00's. Elastic warns: "Restoring the `security` feature state overwrites system indices used for authentication" and suggests a temporary file-realm superuser so you cannot lock yourself out. Here `elastic` has never had its password changed on either side, so it keeps authenticating with the bootstrap password from each node's keystore after the restore (HYPOTHESIS, checked by every later step, which all run as `elastic`). If your `elastic` password was changed through the API on es00, the restored `.security` brings that password along. Source: https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore/restore-snapshot
+- `index_settings` may change any index setting except `index.number_of_shards`, so the restored indices come back with one replica and without the write block that `--final` put on es00. Source: restore API page above. OBSERVED 2026-10-29: `index.blocks.write: false` in `index_settings` overrides the block stored in the `grow-final` snapshot; step 4 printed `blocks.write` `false` and `number_of_replicas` `1` for both indices, and a bulk `create` through Caddy after cutover got 201 (rows `es-grow-restore-06`, `-19`).
+- Restoring the security feature state "closes and overwrites the feature's existing indices": the new cluster's users, roles and API keys become es00's. Elastic warns: "Restoring the `security` feature state overwrites system indices used for authentication" and suggests a temporary file-realm superuser so you cannot lock yourself out. Here `elastic` has never had its password changed on either side, so it keeps authenticating with the bootstrap password from each node's keystore after the restore. OBSERVED 2026-10-29: after both restores every later step and the end-state checks authenticated as `elastic` without error. If your `elastic` password was changed through the API on es00, the restored `.security` brings that password along. Source: https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore/restore-snapshot
 - A restore refuses to overwrite an open index of the same name (FROM TRAINING; the lab run of the second restore without `--replace` would show the error, but the script refuses before that). The second restore therefore needs `--replace`, which deletes `app-*` on the new cluster only, after `assert_new_cluster`.
 
 Then the script waits for green (replica recovery), prints the time, and compares per-index document counts between es00 and the new cluster. After `grow-1` a difference is normal if es00 took writes since; after `grow-final` the script fails on any difference.
@@ -144,8 +157,8 @@ The runner's `up --wait` recreates only Caddy (with the test allowlist); `ES_UPS
 
 | Lab test | Rows | Expected |
 |---|---|---|
-| L-G1 | node rows on es01 | cluster `es-grow-new`, green, 3 nodes; `app-a` and `app-b` green with 1 replica; `app-b` holds exactly 1000 documents; the seed document is present; no write block; template `app` with 1 replica; role `app_writer` and user `app_x` restored; the API key created on es00 authenticates on the new cluster (HYPOTHESIS); `app_x`'s password works; repository `grow` writable; snapshot list recorded |
+| L-G1 | node rows on es01 | cluster `es-grow-new`, green, 3 nodes; `app-a` and `app-b` green with 1 replica; `app-b` holds exactly 1000 documents; the seed document is present; no write block; template `app` with 1 replica; role `app_writer` and user `app_x` restored; the API key created on es00 authenticates on the new cluster (OBSERVED 2026-10-29, row `es-grow-restore-10`: `authentication_type` `api_key`, name `app-x-key`); `app_x`'s password works; repository `grow` writable; snapshot list recorded |
 | L-G1 | proxy rows | the old API key reads and writes through Caddy on the new cluster: a bulk of `create` items accepted (`bodies/bulk-own-create.ndjson`); in `bodies/bulk-own.ndjson` the `index` item gets 403, because the key's `create_doc` does not cover the `index` action (observed 2026-10-29 in `es-single`) |
 | L-N1, L-P1, L-P2, L-P4, L-P20 | as `es-single` | unchanged proxy behaviour |
 
-Timings to record in the lab (not measured yet): the restore and replica recovery of `grow-1` and `grow-final` (printed by step 4), the write-blocked window (from `step-2-snapshot.sh --final` to the end of step 5), the Caddy recreate (printed by step 5).
+Timings from the 2026-10-29 run: restore and replica recovery 5 s for `grow-1` and 5 s for `grow-final` (printed by step 4), Caddy recreate 2 s (printed by step 5), all with 1,001 documents. Not recorded: the write-blocked window (from `step-2-snapshot.sh --final` to the end of step 5).

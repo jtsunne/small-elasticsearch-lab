@@ -2,7 +2,7 @@
 
 One Elasticsearch 9.5.5 node with authentication on, no node certificates and no published ports, behind Caddy. Caddy terminates TLS and applies an IP allowlist, a path and method allowlist and a body size limit. Applications get a scoped role and an expiring, scoped API key that `elastic` creates at setup.
 
-**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with Elasticsearch 9.5.5 and Caddy 2.11.7 as pinned in `versions.env`. Result: 83 of 83 rows pass, `results/tests/2026-10-29-es-single.tap`. One laptop run is one data point, not a reference.
+**Tested on 2026-10-29**, host `laptop-6c16g-nvme-01` (the author's laptop: Linux, cgroup v2, 6 cores / 12 threads, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with Elasticsearch 9.5.5 and Caddy 2.11.7 as pinned in `versions.env`. Result: 83 of 83 rows pass in the explicit heap mode, `results/tests/2026-10-29-es-single.tap`, and 83 of 83 again in the auto-sizing heap mode, `results/tests/2026-10-29-es-single-autoheap.tap` (see "Heap modes (L-M1)"). One laptop run is one data point, not a reference.
 
 The first run the same day passed 78 of 82. Its failures, and what they turned out to be:
 
@@ -10,7 +10,7 @@ The first run the same day passed 78 of 82. Its failures, and what they turned o
 - `es-single-65` (L-P16): the absolute-form request got the same exit 92; `abort` is now an accepted outcome of the row.
 - `es-single-57` (L-P12): the row assumed `create_doc` allows a bulk `index` item. Elasticsearch rejects it with 403. The row was split, see "`create_doc` and the bulk `index` action".
 
-Not tested: L-M1 in auto-sizing mode (only the explicit mode ran), the IP allowlist with Docker's userland proxy (see "IP allowlist" below), the ufw variant of L-N1, `compose.bench.yaml` and every benchmark.
+Not tested: the IP allowlist with Docker's userland proxy (see "IP allowlist" below), the ufw variant of L-N1, `compose.bench.yaml` and every benchmark.
 
 ## Files
 
@@ -68,10 +68,10 @@ For benchmarks, `bench/run.sh` adds `compose.bench.yaml`. The bind-mounted data 
 
 L-M1 runs twice, once per mode, with the same `expected.tsv`. The mode is chosen by `ES_HEAP_OPTS` in `.env`, which compose substitutes into `ES_JAVA_OPTS`:
 
-| Mode | `.env` | `ES_JAVA_OPTS` in the container | Rows | Expected (HYPOTHESIS, not a result) |
+| Mode | `.env` | `ES_JAVA_OPTS` in the container | Rows | Result |
 |---|---|---|---|---|
 | explicit (default) | no `ES_HEAP_OPTS` line, or the line commented out as in `.env.example` | `-Xms1g -Xmx1g` | `L-M1`: heap max assertion and the recorded `_nodes/jvm` arguments | OBSERVED 2026-10-29: heap max 1073741824 bytes, recorded `input_arguments` contain `-Xms1g` and `-Xmx1g` (rows `es-single-02`, `es-single-78`, body in `results/tests/2026-10-29-es-single/es-single-78.json`) |
-| auto-sizing | `ES_HEAP_OPTS=` (empty value) | empty | the same `L-M1` rows | NOT YET RUN. HYPOTHESIS: heap max 1073741824 bytes as well, with no `-Xmx1g` among the recorded arguments: Elasticsearch counts container memory as available memory, and its sizing code gives a data node half of it from 1 GiB up, so 2 GiB gives 1 GiB |
+| auto-sizing | `ES_HEAP_OPTS=` (empty value) | empty | the same `L-M1` rows | OBSERVED 2026-10-29: heap max 1073741824 bytes as well, and the recorded `input_arguments` contain `-Xms1024m` and `-Xmx1024m`, which Elasticsearch added itself; no `-Xms1g` or `-Xmx1g` (rows `es-single-02`, `es-single-78` in `results/tests/2026-10-29-es-single-autoheap.tap`, body in `results/tests/2026-10-29-es-single-autoheap/es-single-78.json`). Apart from the spelling of those two flags the JVM arguments of the two modes are identical, including `-XX:MaxDirectMemorySize=536870912` |
 
 All other rows run in the explicit mode; they do not depend on the heap mode, and running them again in auto mode is harmless. A variable named `ES_HEAP_OPTS` in the shell that runs `make` or `tests/run-scenario.sh` overrides `.env`, so unset it before the explicit run. `make test` creates the containers and removes them with their volumes afterwards, so each run starts with the heap mode in `.env` at that moment; with `make up`, run `make down` before switching, because `ES_JAVA_OPTS` is read only when the container is created.
 
@@ -82,7 +82,7 @@ make test SCENARIO=es-single                                  # auto mode
 sed -i '/^ES_HEAP_OPTS=/d' scenarios/es-single/.env           # back to explicit
 ```
 
-The auto-mode expectation rests on two sources, neither a measurement: the JVM settings page says "the total memory available to Elasticsearch means the amount of memory available within the container" (https://www.elastic.co/docs/reference/elasticsearch/jvm-settings), and `MachineDependentHeap.java` on the `main` branch gives a data node 50% of available memory at 1 GiB and above, 40% below (https://github.com/elastic/elasticsearch/blob/main/distribution/tools/server-cli/src/main/java/org/elasticsearch/server/cli/MachineDependentHeap.java). The 9.5 branch was not checked. If the auto run reports anything other than 1073741824, the row fails and the recorded body is the result to write up, not a bug in the row.
+The auto-mode expectation rests on two sources, neither a measurement: the JVM settings page says "the total memory available to Elasticsearch means the amount of memory available within the container" (https://www.elastic.co/docs/reference/elasticsearch/jvm-settings), and `MachineDependentHeap.java` on the `main` branch gives a data node 50% of available memory at 1 GiB and above, 40% below (https://github.com/elastic/elasticsearch/blob/main/distribution/tools/server-cli/src/main/java/org/elasticsearch/server/cli/MachineDependentHeap.java). The 9.5 branch was not checked; the 2026-10-29 auto run gave 1 GiB in a 2 GiB container, which matches the 50% rule, for this one container size only.
 
 ## The application API key
 

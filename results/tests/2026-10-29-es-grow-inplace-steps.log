@@ -1,0 +1,279 @@
+wrote scenarios/es-grow-inplace/.env (mode 600)
+##### ./step-0-seed.sh
+==> creating the snapshot directory scenarios/es-grow-inplace/./snapshots (owner <user>, group 0, mode 2770)
+==> starting es01 (single node) and caddy
+ Volume es-grow-inplace_caddy_data Creating 
+ Volume es-grow-inplace_caddy_config Creating 
+ Volume es-grow-inplace_caddy_data Creating 
+ Volume es-grow-inplace_caddy_config Creating 
+ Network es-grow-inplace_backend Creating 
+ Network es-grow-inplace_backend Creating 
+ Volume es-grow-inplace_esdata01 Creating 
+ Volume es-grow-inplace_esdata01 Creating 
+ Volume es-grow-inplace_caddy_data Created 
+ Volume es-grow-inplace_caddy_data Created 
+ Volume es-grow-inplace_caddy_config Created 
+ Volume es-grow-inplace_caddy_config Created 
+ Volume es-grow-inplace_esdata01 Created 
+ Volume es-grow-inplace_esdata01 Created 
+ Network es-grow-inplace_backend Created 
+ Network es-grow-inplace_backend Created 
+ Container es-grow-inplace-es01-1 Creating 
+ Container es-grow-inplace-es01-1 Created 
+ Container es-grow-inplace-caddy-1 Creating 
+ Container es-grow-inplace-caddy-1 Created 
+ Container es-grow-inplace-es01-1 Starting 
+ Container es-grow-inplace-es01-1 Started 
+ Container es-grow-inplace-es01-1 Waiting 
+ Container es-grow-inplace-es01-1 Healthy 
+ Container es-grow-inplace-caddy-1 Starting 
+ Container es-grow-inplace-caddy-1 Started 
+ Container es-grow-inplace-caddy-1 Waiting 
+ Container es-grow-inplace-es01-1 Waiting 
+ Container es-grow-inplace-caddy-1 Healthy 
+ Container es-grow-inplace-es01-1 Healthy 
+==> index template app (1 shard, 0 replicas), role app_writer, user app_x
+==> loading 1000 documents into app-b
+==> creating the app API key (30 days, owned by elastic, scoped by role_descriptors)
+==> es01 holds:
+app-a 1
+app-b 1000
+##### rc=0: ./step-0-seed.sh
+##### ./step-1-preflight.sh
+==> vm.max_map_count 1048576
+==> no certificates yet: running certs/gen-certs.sh
+generating a CA and certificates for: es01 es02 es03 es04 (image docker.elastic.co/elasticsearch/elasticsearch:9.5.5@sha256:13b4a40bb095774f5fda635e45fd5677cc6a26565e42b24997b0c72b88e75984)
+-rw------- 1 <user> <group>   1675 Oct 28 20:39 scenarios/es-grow-inplace/certs/ca-key.pem
+-rw-r--r-- 1 <user> root 1224 Oct 28 20:39 scenarios/es-grow-inplace/certs/ca.pem
+-rw-r----- 1 <user> root 1675 Oct 28 20:39 scenarios/es-grow-inplace/certs/es01-key.pem
+-rw-r--r-- 1 <user> root 1188 Oct 28 20:39 scenarios/es-grow-inplace/certs/es01.pem
+-rw-r----- 1 <user> root 1679 Oct 28 20:39 scenarios/es-grow-inplace/certs/es02-key.pem
+-rw-r--r-- 1 <user> root 1188 Oct 28 20:39 scenarios/es-grow-inplace/certs/es02.pem
+-rw-r----- 1 <user> root 1679 Oct 28 20:39 scenarios/es-grow-inplace/certs/es03-key.pem
+-rw-r--r-- 1 <user> root 1188 Oct 28 20:39 scenarios/es-grow-inplace/certs/es03.pem
+-rw-r----- 1 <user> root 1679 Oct 28 20:39 scenarios/es-grow-inplace/certs/es04-key.pem
+-rw-r--r-- 1 <user> root 1188 Oct 28 20:39 scenarios/es-grow-inplace/certs/es04.pem
+==> es01 discovery.type now: single-node
+==> recorded cluster_uuid aRPjna2ZQCaIaU1Na7tYqQ
+==> taking snapshot before-grow (app-*, security feature state)
+==> es01 document counts, recorded for step 6:
+app-a 1
+app-b 1000
+##### rc=0: ./step-1-preflight.sh
+##### ./step-2-restart-first.sh
+==> recreating es01 with the cluster configuration (Caddy gets errors until it is back)
+ Container es-grow-inplace-es01-1 Recreate 
+ Container es-grow-inplace-es01-1 Recreated 
+ Container es-grow-inplace-es01-1 Starting 
+ Container es-grow-inplace-es01-1 Started 
+ Container es-grow-inplace-es01-1 Waiting 
+ Container es-grow-inplace-es01-1 Healthy 
+==> es01 back after 55s
+==> cluster_uuid unchanged (aRPjna2ZQCaIaU1Na7tYqQ); voting configuration size 1
+{"discovery":{"seed_hosts":"es01,es02,es03"},"xpack":{"security":{"transport":{"ssl":{"enabled":"true"}}}}}
+##### rc=0: ./step-2-restart-first.sh
+##### ./step-3-add-node.sh es02
+jq: error (at <stdin>:0): Cannot iterate over null (null)
+==> starting es02 with an empty data path, seed hosts es01..es03, no initial_master_nodes
+ Volume es-grow-inplace_esdata02 Creating 
+ Volume es-grow-inplace_esdata02 Creating 
+ Volume es-grow-inplace_esdata02 Created 
+ Volume es-grow-inplace_esdata02 Created 
+ Container es-grow-inplace-es02-1 Creating 
+ Container es-grow-inplace-es02-1 Created 
+ Container es-grow-inplace-es02-1 Starting 
+ Container es-grow-inplace-es02-1 Started 
+ Container es-grow-inplace-es02-1 Waiting 
+ Container es-grow-inplace-es02-1 Healthy 
+es01 dim *
+es02 dim -
+==> es02 joined; voting configuration size 1
+##### rc=0: ./step-3-add-node.sh es02
+##### ./step-3-add-node.sh es03
+jq: error (at <stdin>:0): Cannot iterate over null (null)
+==> starting es03 with an empty data path, seed hosts es01..es03, no initial_master_nodes
+ Volume es-grow-inplace_esdata03 Creating 
+ Volume es-grow-inplace_esdata03 Creating 
+ Volume es-grow-inplace_esdata03 Created 
+ Volume es-grow-inplace_esdata03 Created 
+ Container es-grow-inplace-es03-1 Creating 
+ Container es-grow-inplace-es03-1 Created 
+ Container es-grow-inplace-es03-1 Starting 
+ Container es-grow-inplace-es03-1 Started 
+ Container es-grow-inplace-es03-1 Waiting 
+ Container es-grow-inplace-es03-1 Healthy 
+es01 dim *
+es02 dim -
+es03 dim -
+==> es03 joined; voting configuration size 3
+##### rc=0: ./step-3-add-node.sh es03
+##### ./step-4-replicas.sh
+node shards disk.indices disk.used disk.avail disk.percent
+es01      3       88.1kb    61.8gb    169.9gb           26
+es02      3      128.5kb    61.8gb    169.9gb           26
+es03      2       18.1kb    61.8gb    169.9gb           26
+==> index template app: 1 replica
+==> existing app-* indices: 1 replica
+==> green after 2s
+app-a r STARTED es01
+app-a p STARTED es03
+app-b p STARTED es02
+app-b r STARTED es03
+##### rc=0: ./step-4-replicas.sh
+##### ./step-5-caddy.sh
+ Container es-grow-inplace-caddy-1 Recreate 
+ Container es-grow-inplace-caddy-1 Recreated 
+ Container es-grow-inplace-caddy-1 Starting 
+ Container es-grow-inplace-caddy-1 Started 
+ Container es-grow-inplace-caddy-1 Waiting 
+ Container es-grow-inplace-caddy-1 Healthy 
+==> Caddy recreated in 2s, upstreams es01 es02 es03
+##### rc=0: ./step-5-caddy.sh
+##### ./step-6-verify.sh
+==> all three nodes report cluster_uuid aRPjna2ZQCaIaU1Na7tYqQ
+==> green, 3 nodes, voting configuration size 3
+==> document counts equal to before growth: app-a 1,app-b 1000
+##### rc=0: ./step-6-verify.sh
+tests rc=0
+##### ./trap.sh g3 --confirm
+==> L-G3: starting es04 with cluster.initial_master_nodes=es04 and seed hosts es01..es03
+ Volume es-grow-inplace_esdata04 Creating 
+ Volume es-grow-inplace_esdata04 Creating 
+ Volume es-grow-inplace_esdata04 Created 
+ Volume es-grow-inplace_esdata04 Created 
+ Container es-grow-inplace-es04-1 Creating 
+ Container es-grow-inplace-es04-1 Created 
+ Container es-grow-inplace-es04-1 Starting 
+ Container es-grow-inplace-es04-1 Started 
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 9200: Connection refused
+==> es04: {"cluster_name":"es-grow-inplace","cluster_uuid":"74zXN_BOQC6ACaf5o_HG7w"}
+==> original cluster_uuid: aRPjna2ZQCaIaU1Na7tYqQ
+==> es01 nodes: es02 es01 es03 
+==> es04 nodes: es04 
+==> es04 log lines about bootstrap, joins or cluster UUIDs:
+es04-1  | {"@timestamp":"2026-10-29T01:43:18.353Z","log.level": "INFO","message":"version[9.5.5], pid[181], build[docker/48acba663b09e70b115dd879329141506c377890/2026-09-30T22:12:03.984586187Z], OS[Linux/7.2.11-arch1-<build suffix removed>/amd64], JVM[Oracle Corporation/OpenJDK 64-Bit Server VM/27/27+35-2325]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:18.358Z","log.level": "INFO","message":"JVM home [/usr/share/elasticsearch/jdk], using bundled JDK [true]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:18.359Z","log.level": "INFO","message":"JVM arguments [-Des.networkaddress.cache.ttl=60, -Des.networkaddress.cache.negative.ttl=10, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, --add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server, --add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server, --add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Dlog4j2.formatMsgNoLookups=true, -Djava.locale.providers=CLDR, -Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=27, -Des.path.home=/usr/share/elasticsearch, -Des.distribution.type=docker, -Des.java.type=bundled JDK, --enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core, --enable-native-access=ALL-UNNAMED, --illegal-native-access=deny, -Des.cgroups.hierarchy.override=/, -XX:ReplayDataFile=logs/replay_pid%p.log, -XX:+EnableDynamicAgentLoading, -Djdk.attach.allowAttachSelf=true, --patch-module=java.base=/usr/share/elasticsearch/lib/entitlement-bridge/elasticsearch-entitlement-bridge-9.5.5.jar, --add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs,jdk.management.agent, -XX:+UseG1GC, -Djava.io.tmpdir=/tmp/elasticsearch-5526371624320682691, --add-modules=jdk.incubator.vector, -Dorg.apache.lucene.store.defaultReadAdvice=normal, -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1, --add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED, --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED, -XX:+HeapDumpOnOutOfMemoryError, -XX:+ExitOnOutOfMemoryError, -XX:ErrorFile=hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m, -Xms1g, -Xmx1g, -XX:MaxDirectMemorySize=536870912, -XX:G1HeapRegionSize=4m, -XX:G1IHOP=30, -XX:G1ReservePercent=15, --module-path=/usr/share/elasticsearch/lib, --add-modules=jdk.net, --add-modules=jdk.management.agent, --add-modules=ALL-MODULE-PATH, -Djdk.module.main=org.elasticsearch.server]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:18.360Z","log.level": "INFO","message":"Default Locale [en_US]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:19.044Z","log.level": "INFO","message":"Bootstrapping Entitlements", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:26.045Z","log.level": "INFO","message":"Entitlement agent attached in [811ms] (attach=[113ms], loadAgent+detach=[698ms])", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:27.953Z","log.level": "INFO","message":"loaded module [parent-join]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.plugins.PluginsService","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:49.352Z","log.level": "INFO","message":"bound or publishing to a non-loopback address, enforcing bootstrap checks", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.BootstrapChecks","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:49.354Z","log.level": "INFO","message":"this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to [es04]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.cluster.coordination.ClusterBootstrapService","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:49.841Z","log.level": "INFO","message":"elected-as-master ([1] nodes joined in term 1)[_FINISH_ELECTION_, {es04}{Xi-4FwwNTDS6ZmvGf3rRTg}{fe6KWekYSee8g8xQfcy7Hg}{es04}{172.18.0.6}{172.18.0.6:9300}{dim}{9.5.5}{8000099-9111000} completing election], term: 1, version: 1, delta: master node changed {previous [], current [{es04}{Xi-4FwwNTDS6ZmvGf3rRTg}{fe6KWekYSee8g8xQfcy7Hg}{es04}{172.18.0.6}{172.18.0.6:9300}{dim}{9.5.5}{8000099-9111000}]}", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"elasticsearch[es04][masterService#updateTask][T#1]","log.logger":"org.elasticsearch.cluster.service.MasterService","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:50.027Z","log.level": "INFO","message":"cluster UUID set to [74zXN_BOQC6ACaf5o_HG7w]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"elasticsearch[es04][cluster_coordination][T#1]","log.logger":"org.elasticsearch.cluster.coordination.CoordinationState","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:43:50.428Z","log.level": "INFO","message":"node-join: [{es04}{Xi-4FwwNTDS6ZmvGf3rRTg}{fe6KWekYSee8g8xQfcy7Hg}{es04}{172.18.0.6}{172.18.0.6:9300}{dim}{9.5.5}{8000099-9111000}] with reason [completing election]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"elasticsearch[es04][masterService#updateTask][T#1]","log.logger":"org.elasticsearch.cluster.coordination.NodeJoinExecutor","elasticsearch.cluster.uuid":"74zXN_BOQC6ACaf5o_HG7w","elasticsearch.node.id":"Xi-4FwwNTDS6ZmvGf3rRTg","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+es04-1  | {"@timestamp":"2026-10-29T01:44:19.756Z","log.level": "WARN","message":"This node is a fully-formed single-node cluster with cluster UUID [74zXN_BOQC6ACaf5o_HG7w], but it is configured as if to discover other nodes and form a multi-node cluster via the [discovery.seed_hosts=[es01, es02, es03]] setting. Fully-formed clusters do not attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. The cluster UUID persists across restarts and can only be changed by deleting the contents of the node's data path(s). Remove the discovery configuration to suppress this message. See [https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-bootstrap-cluster?version=9.5#modules-discovery-bootstrap-cluster-joining] for more information.", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"elasticsearch[es04][cluster_coordination][T#1]","log.logger":"org.elasticsearch.cluster.coordination.Coordinator","elasticsearch.cluster.uuid":"74zXN_BOQC6ACaf5o_HG7w","elasticsearch.node.id":"Xi-4FwwNTDS6ZmvGf3rRTg","elasticsearch.node.name":"es04","elasticsearch.cluster.name":"es-grow-inplace"}
+==> es04 and its volume removed
+##### rc=0: ./trap.sh g3 --confirm
+docker compose --project-directory scenarios/es-grow-inplace --env-file versions.env --env-file scenarios/es-grow-inplace/.env -f scenarios/es-grow-inplace/compose.yaml down -v
+ Container es-grow-inplace-caddy-1 Stopping 
+ Container es-grow-inplace-caddy-1 Stopped 
+ Container es-grow-inplace-caddy-1 Removing 
+ Container es-grow-inplace-caddy-1 Removed 
+ Container es-grow-inplace-es01-1 Stopping 
+ Container es-grow-inplace-es02-1 Stopping 
+ Container es-grow-inplace-es03-1 Stopping 
+ Container es-grow-inplace-es03-1 Stopped 
+ Container es-grow-inplace-es03-1 Removing 
+ Container es-grow-inplace-es01-1 Stopped 
+ Container es-grow-inplace-es01-1 Removing 
+ Container es-grow-inplace-es02-1 Stopped 
+ Container es-grow-inplace-es02-1 Removing 
+ Container es-grow-inplace-es03-1 Removed 
+ Container es-grow-inplace-es01-1 Removed 
+ Container es-grow-inplace-es02-1 Removed 
+ Volume es-grow-inplace_caddy_data Removing 
+ Volume es-grow-inplace_caddy_config Removing 
+ Volume es-grow-inplace_esdata03 Removing 
+ Volume es-grow-inplace_esdata02 Removing 
+ Network es-grow-inplace_backend Removing 
+ Volume es-grow-inplace_caddy_data Removed 
+ Volume es-grow-inplace_esdata01 Removing 
+ Volume es-grow-inplace_esdata03 Removed 
+ Volume es-grow-inplace_caddy_config Removed 
+ Volume es-grow-inplace_esdata02 Removed 
+ Volume es-grow-inplace_esdata01 Removed 
+ Network es-grow-inplace_backend Removed 
+=========== G4 run
+##### ./step-0-seed.sh
+==> starting es01 (single node) and caddy
+ Volume es-grow-inplace_esdata01 Creating 
+ Volume es-grow-inplace_caddy_data Creating 
+ Volume es-grow-inplace_esdata01 Creating 
+ Volume es-grow-inplace_caddy_data Creating 
+ Volume es-grow-inplace_caddy_config Creating 
+ Network es-grow-inplace_backend Creating 
+ Volume es-grow-inplace_caddy_config Creating 
+ Network es-grow-inplace_backend Creating 
+ Volume es-grow-inplace_esdata01 Created 
+ Volume es-grow-inplace_esdata01 Created 
+ Volume es-grow-inplace_caddy_config Created 
+ Volume es-grow-inplace_caddy_config Created 
+ Volume es-grow-inplace_caddy_data Created 
+ Volume es-grow-inplace_caddy_data Created 
+ Network es-grow-inplace_backend Created 
+ Network es-grow-inplace_backend Created 
+ Container es-grow-inplace-es01-1 Creating 
+ Container es-grow-inplace-es01-1 Created 
+ Container es-grow-inplace-caddy-1 Creating 
+ Container es-grow-inplace-caddy-1 Created 
+ Container es-grow-inplace-es01-1 Starting 
+ Container es-grow-inplace-es01-1 Started 
+ Container es-grow-inplace-es01-1 Waiting 
+ Container es-grow-inplace-es01-1 Healthy 
+ Container es-grow-inplace-caddy-1 Starting 
+ Container es-grow-inplace-caddy-1 Started 
+ Container es-grow-inplace-caddy-1 Waiting 
+ Container es-grow-inplace-es01-1 Waiting 
+ Container es-grow-inplace-es01-1 Healthy 
+ Container es-grow-inplace-caddy-1 Healthy 
+==> index template app (1 shard, 0 replicas), role app_writer, user app_x
+==> loading 1000 documents into app-b
+==> es01 holds:
+app-a 1
+app-b 1000
+##### rc=0: ./step-0-seed.sh
+##### ./step-1-preflight.sh
+==> vm.max_map_count 1048576
+==> es01 discovery.type now: single-node
+error: es01 reports cluster_uuid LQnxTOQ4T1KsXI5B7qn10Q but .env recorded aRPjna2ZQCaIaU1Na7tYqQ: es01 is not the node this procedure started with
+##### rc=1: ./step-1-preflight.sh
+docker compose --project-directory scenarios/es-grow-inplace --env-file versions.env --env-file scenarios/es-grow-inplace/.env -f scenarios/es-grow-inplace/compose.yaml down -v
+ Container es-grow-inplace-caddy-1 Stopping 
+ Container es-grow-inplace-caddy-1 Stopped 
+ Container es-grow-inplace-caddy-1 Removing 
+ Container es-grow-inplace-caddy-1 Removed 
+ Container es-grow-inplace-es01-1 Stopping 
+ Container es-grow-inplace-es01-1 Stopped 
+ Container es-grow-inplace-es01-1 Removing 
+ Container es-grow-inplace-es01-1 Removed 
+ Volume es-grow-inplace_esdata01 Removing 
+ Volume es-grow-inplace_caddy_data Removing 
+ Volume es-grow-inplace_caddy_config Removing 
+ Network es-grow-inplace_backend Removing 
+ Volume es-grow-inplace_esdata01 Removed 
+ Volume es-grow-inplace_caddy_config Removed 
+ Volume es-grow-inplace_caddy_data Removed 
+ Network es-grow-inplace_backend Removed 
+DONE
