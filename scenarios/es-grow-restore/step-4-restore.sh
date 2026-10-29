@@ -60,8 +60,8 @@ es_ok es01 POST "/_snapshot/grow/$snapshot/_restore?wait_for_completion=true" <<
   "index_settings": {"index.number_of_replicas": 1, "index.blocks.write": false}
 }
 JSON
-es_ok es01 GET '/_cluster/health/app-*?wait_for_status=green&timeout=300s' </dev/null >/dev/null ||
-	die "restored indices did not reach green within 300s"
+READY_TIMEOUT=${READY_TIMEOUT:-300} wait_ready es01 '/_cluster/health/app-*?wait_for_status=green&timeout=30s' ||
+	die "restored indices did not reach green"
 say "restore and replica recovery took $((SECONDS - start))s"
 
 old=$(app_counts es00)

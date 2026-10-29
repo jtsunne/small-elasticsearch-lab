@@ -2,7 +2,11 @@
 
 The `os-single` scenario plus OpenSearch Dashboards 3.9.0, on its own site behind the same Caddy and the same IP allowlist. Everything in `../os-single/README.md` applies here; read it first. This file covers only what Dashboards adds.
 
-**Tested on: NOT YET TESTED.** Nothing in this directory has been run against a real OpenSearch node or Dashboards. Static checks only. Every expectation in `expected.tsv` is a hypothesis until the lab run records it.
+**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0, OpenSearch Dashboards 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 70 of 70 rows pass, `results/tests/2026-10-29-os-single-dashboards.tap`.
+
+The first run the same day passed 55 of 70. Its failures were the same 14 rows as in `os-single` (missing `Content-Type` and its cascade, and the HTTP/2 abort seen as curl exit 92), plus `os-single-dashboards-64` (L-K2, the same exit 92 on the Dashboards site). See `../os-single/README.md` for each.
+
+Not tested: Dashboards memory use and startup time with `mem_limit: 1g` (the run shows it starts and answers; `OOMKilled` and timings were not recorded), `compose.bench.yaml`, and the items listed for `os-single`.
 
 ## What Dashboards adds
 
@@ -16,7 +20,7 @@ The `os-single` scenario plus OpenSearch Dashboards 3.9.0, on its own site behin
 
 ## The proxy does not protect the API once Dashboards is exposed
 
-The API site has a path allowlist; the Dashboards site cannot have one, because Dashboards needs its whole URL space. Dev Tools sends any request to OpenSearch through `/api/console/proxy` on behalf of the logged-in user. So an allowlisted client with a Dashboards login reaches every API that user's roles allow, `_cluster`, `_plugins/_security` and all, without touching the API site's rules. `expected.tsv` shows both sides: `app_x` gets 403 from OpenSearch for `_cluster/settings` through the console proxy, `admin` gets 200. Exposing Dashboards makes OpenSearch roles the only access control; that was true before, now it is also obvious.
+The API site has a path allowlist; the Dashboards site cannot have one, because Dashboards needs its whole URL space. Dev Tools sends any request to OpenSearch through `/api/console/proxy` on behalf of the logged-in user. So an allowlisted client with a Dashboards login reaches every API that user's roles allow, `_cluster`, `_plugins/_security` and all, without touching the API site's rules. `expected.tsv` shows both sides, OBSERVED on 2026-10-29: `app_x` gets 403 for `_cluster/settings` through the console proxy (`os-single-dashboards-69`), `admin` gets 200 with the cluster settings (`-70`), although Caddy answers 404 for `_cluster` paths on the API site. Unlike Kibana 9.5.5, Dashboards 3.9.0 accepted these console requests with only `osd-xsrf: true` and basic auth; no internal-origin header was needed. Exposing Dashboards makes OpenSearch roles the only access control; that was true before, now it is also obvious.
 
 ## Run
 
@@ -48,8 +52,12 @@ Same as `os-single` (each scenario is self-contained, so the shared files are co
 
 Format as in `../os-single/README.md`, plus site `dashboards` (through Caddy, `DASHBOARDS_SITE_ADDRESS`) and auth `kibanaserver/KIBANASERVER_PASSWORD` (the runner's generic `user/VAR` form). Rows 01 to 62 are the `os-single` checks. The added rows: `kibanaserver` authenticates and has `kibana_server` (L-O2); a non-allowlisted peer is aborted on the Dashboards site, an allowlisted one gets the login page (L-K2); `/api/status` is 401 without credentials, 200 for `admin`, 401 for `kibanaserver:kibanaserver`; the console proxy rows described above.
 
-## Not verified (needs the lab run)
+Every row with a body names its `Content-Type` in the `headers` column. Without it curl sends `application/x-www-form-urlencoded`, which OpenSearch rejects with 406; in the first lab run (2026-10-29) that failed the index creation rows and cascaded into every row that needs `app-a`. See `../os-single/README.md`.
 
-In addition to the `os-single` list: that Dashboards 3.9.0 starts with this file and 1 GiB, that `/app/login`, `/api/status` and `/api/console/proxy` answer as `expected.tsv` says (in particular whether `/api/status` requires authentication with the security plugin), that basic auth headers work against the Dashboards API, that the healthcheck's `curl` exists in the Dashboards image, and that `OPENSEARCH_HOSTS` in the bench override wins over the mounted YAML.
+## Verified by the lab run, and not
+
+Shown by the run on 2026-10-29, in addition to the `os-single` list: Dashboards 3.9.0 starts with this file and `mem_limit: 1g`; the healthcheck lets `compose up --wait` complete; `/app/login` is aborted for a non-allowlisted peer and answers 200 for an allowlisted one (`-64`, `-65`); `/api/status` requires authentication with the security plugin (401 without credentials, `-66`; 200 for `admin`, `-67`; 401 for `kibanaserver:kibanaserver`, `-68`); basic auth works against the Dashboards API; the console proxy rows above.
+
+Still not verified: memory headroom and startup time at 1 GiB, and that `OPENSEARCH_HOSTS` in the bench override wins over the mounted YAML.
 
 Static checks done when this was written: `docker compose config` (base and with `compose.bench.yaml`), `caddy fmt` / `caddy validate` / `caddy adapt` with Caddy 2.11.7, the proxy-only matrix against the API site (`tests/run-proxy-matrix.sh --engine os`, 93 of 93 rows), a local Caddy run showing that a non-allowlisted peer is aborted on both sites and an allowlisted one is proxied to the Dashboards upstream, `gen-certs.sh` and `init-security.sh` (stub `docker`) runs, `bash -n`, YAML, JSON and TSV well-formedness.

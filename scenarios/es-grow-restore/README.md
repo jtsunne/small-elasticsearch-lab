@@ -2,7 +2,7 @@
 
 Growth procedure A, the recommended one: keep the single node as it is, take a snapshot of it into a shared filesystem repository, build a new three-node cluster next to it, restore, compare, and move Caddy over. The old node stays untouched until you decide to remove it, so rollback is pointing Caddy back.
 
-**Tested on: NOT YET TESTED.** The files pass static checks only: `docker compose config` (with and without the `new` profile), `caddy validate`, `bash -n` on every script, `tests/run-scenario.sh --plan-only` and a proxy-only run of the Caddyfile. No step script has run against a real Elasticsearch yet, and no timing below is measured. Every expectation was written before the lab run (L-G1) and may be wrong.
+**Tested on: NOT YET TESTED.** This scenario was not part of the 2026-10-29 lab run, which covered `es-single`, `es-single-kibana`, `es-three-local`, `os-single` and `os-single-dashboards`. The files pass static checks only: `docker compose config` (with and without the `new` profile), `caddy validate`, `bash -n` on every script, `tests/run-scenario.sh --plan-only` and a proxy-only run of the Caddyfile. No step script has run against a real Elasticsearch, and no timing below is measured. Every expectation was written before a lab run (L-G1) and may be wrong. The readiness waits and the split `L-P12` rows were changed after the 2026-10-29 run, from what it showed on the other Elasticsearch scenarios; they are untested here.
 
 **Lab only.** es00 and the three new nodes all run on one host; see `es-three-local` for why that gives no fault tolerance.
 
@@ -22,10 +22,10 @@ Growth procedure A, the recommended one: keep the single node as it is, take a s
 | `.env.example` | as `es-single`, plus `SNAPSHOT_DIR` and `ES_UPSTREAMS` |
 | `init-env.sh` | writes `.env` with random passwords |
 | `certs/gen-certs.sh` | transport certificates for es01..es03, see `es-three-local` |
-| `common.sh` | helpers sourced by the scripts: compose command, curl inside a node container as `elastic` (password on stdin), document counts, the guard that tells the two clusters apart |
+| `common.sh` | helpers sourced by the scripts: compose command, curl inside a node container as `elastic` (password on stdin), document counts, the guard that tells the two clusters apart, and `wait_ready`, which retries a health wait on 503, 401, 408 and no answer for up to `READY_TIMEOUT` seconds (default 180; 300 in step 4) with one progress line per attempt, because a node can be healthy for compose before its `.security-7` primary is assigned and `elastic` can authenticate (seen in `es-three-local`, 2026-10-29) |
 | `step-0-seed.sh` .. `step-5-cutover.sh`, `rollback.sh` | the procedure, one script per step |
 | `expected.tsv` | checks of the end state after step 5 |
-| `bodies/` | request body for `expected.tsv` |
+| `bodies/` | request bodies for `expected.tsv` |
 
 ## Runbook
 
@@ -145,7 +145,7 @@ The runner's `up --wait` recreates only Caddy (with the test allowlist); `ES_UPS
 | Lab test | Rows | Expected |
 |---|---|---|
 | L-G1 | node rows on es01 | cluster `es-grow-new`, green, 3 nodes; `app-a` and `app-b` green with 1 replica; `app-b` holds exactly 1000 documents; the seed document is present; no write block; template `app` with 1 replica; role `app_writer` and user `app_x` restored; the API key created on es00 authenticates on the new cluster (HYPOTHESIS); `app_x`'s password works; repository `grow` writable; snapshot list recorded |
-| L-G1 | proxy rows | the old API key reads and writes through Caddy on the new cluster |
+| L-G1 | proxy rows | the old API key reads and writes through Caddy on the new cluster: a bulk of `create` items accepted (`bodies/bulk-own-create.ndjson`); in `bodies/bulk-own.ndjson` the `index` item gets 403, because the key's `create_doc` does not cover the `index` action (observed 2026-10-29 in `es-single`) |
 | L-N1, L-P1, L-P2, L-P4, L-P20 | as `es-single` | unchanged proxy behaviour |
 
 Timings to record in the lab (not measured yet): the restore and replica recovery of `grow-1` and `grow-final` (printed by step 4), the write-blocked window (from `step-2-snapshot.sh --final` to the end of step 5), the Caddy recreate (printed by step 5).

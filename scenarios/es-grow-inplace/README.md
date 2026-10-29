@@ -12,7 +12,7 @@ Growth procedure B: turn the existing single node into the first node of a three
 
 What B saves: no second copy of the data on disk during the move, no restore, and the application keeps one cluster (same `cluster_uuid`, same API key) throughout. Downtime is one restart of es01.
 
-**Tested on: NOT YET TESTED.** The files pass static checks only: `docker compose config` on all three compose files, `caddy validate`, `bash -n` on every script, `tests/run-scenario.sh --plan-only` and a proxy-only run of the Caddyfile. Nothing has run against a real Elasticsearch yet.
+**Tested on: NOT YET TESTED.** This scenario was not part of the 2026-10-29 lab run, which covered `es-single`, `es-single-kibana`, `es-three-local`, `os-single` and `os-single-dashboards`. The files pass static checks only: `docker compose config` on all three compose files, `caddy validate`, `bash -n` on every script, `tests/run-scenario.sh --plan-only` and a proxy-only run of the Caddyfile. Nothing here has run against a real Elasticsearch. The readiness waits and the split `L-P12` rows were changed after that run, from what it showed on the other Elasticsearch scenarios (`.security-7` startup race, `create_doc` and the bulk `index` action); they are untested in this scenario. L-G2, L-G3 and L-G4 are open.
 
 **Lab only.** Three nodes on one host; see `es-three-local`.
 
@@ -26,9 +26,10 @@ What B saves: no second copy of the data on disk during the move, no restore, an
 | `Caddyfile` | as `es-three-local`; the compose file sets `ES_UPSTREAMS` |
 | `.env.example`, `init-env.sh` | as `es-single`, plus `SNAPSHOT_DIR` |
 | `certs/gen-certs.sh` | transport certificates for es01..es04 (es04 is for L-G3), see `es-three-local` |
-| `common.sh` | helpers: compose commands per phase, curl inside a node as `elastic` (password on stdin), the cluster UUID guard |
+| `common.sh` | helpers: compose commands per phase, curl inside a node as `elastic` (password on stdin), the cluster UUID guard, and `wait_ready`, which retries a health wait on 503, 401, 408 and no answer for up to `READY_TIMEOUT` seconds (default 180; 300 in steps 2 and 4) with one progress line per attempt, because a node can be healthy for compose before its `.security-7` primary is assigned and `elastic` can authenticate (seen in `es-three-local`, 2026-10-29) |
 | `step-0-seed.sh` .. `step-6-verify.sh`, `rollback.sh`, `trap.sh` | the procedure and the traps |
 | `expected.tsv` | checks of the end state after step 6 |
+| `bodies/` | request bodies for `expected.tsv` |
 
 ## Runbook
 
@@ -146,7 +147,7 @@ There is no `setup-roles.sh`: the API key from step 0 must still work after grow
 | Lab test | Rows | Expected |
 |---|---|---|
 | L-G2 | node rows on es01 | green with three master-eligible nodes, voting configuration 3, no node in single-node mode, `cluster.initial_master_nodes` set on none, transport TLS on all, `app-a` and `app-b` with 1 replica and copies on two nodes, exactly 1000 documents in `app-b`, template with 1 replica, the API key from step 0 still valid, snapshot `before-grow` present |
-| L-G2 | proxy rows | reads through Caddy round robin over three nodes, a bulk write accepted |
+| L-G2 | proxy rows | reads through Caddy round robin over three nodes; a bulk of `create` items accepted (`bodies/bulk-own-create.ndjson`); in `bodies/bulk-own.ndjson` the `index` item gets 403, because the key's `create_doc` does not cover the `index` action (observed 2026-10-29 in `es-single`) |
 | L-N1, L-P1, L-P2, L-P4, L-P20 | as `es-single` | unchanged proxy behaviour |
 
 The same `cluster_uuid` on all three nodes is checked by `step-6-verify.sh`, not by `expected.tsv`: the runner's node rows all go to es01. The es01 restart downtime is printed by step 2.

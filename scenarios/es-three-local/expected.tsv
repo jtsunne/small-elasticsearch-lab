@@ -26,5 +26,6 @@ es-three-local-24	L-P4	es	allowed	app_key	GET	/_cat/nodes	-	-	404	-
 es-three-local-25	L-P4	node	-	app_key	GET	/_cat/nodes	-	-	403	contains:security_exception
 es-three-local-26	L-P7	es	allowed	app_key	GET	/secret/../app-a/_search	-	-	404	-
 es-three-local-27	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-foreign.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 403)
-es-three-local-28	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == false) and (.items[0].create.status == 201)
+es-three-local-28	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own-create.ndjson	200	jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201)
+es-three-local-30	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index"))
 es-three-local-29	L-P20	es	allowed	none	GET	/	-	-	404	!contains:cluster_uuid

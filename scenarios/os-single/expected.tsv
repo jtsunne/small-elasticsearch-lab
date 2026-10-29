@@ -1,6 +1,6 @@
 id	test	site	from	auth	method	path	headers	body	expect_status	expect
-os-single-01	setup	node	-	admin	PUT	/app-a	-	@bodies/index.json	200	jq:.acknowledged == true
-os-single-02	setup	node	-	admin	PUT	/secret	-	@bodies/index.json	200	jq:.acknowledged == true
+os-single-01	setup	node	-	admin	PUT	/app-a	Content-Type: application/json	@bodies/index.json	200	jq:.acknowledged == true
+os-single-02	setup	node	-	admin	PUT	/secret	Content-Type: application/json	@bodies/index.json	200	jq:.acknowledged == true
 os-single-03	L-O2	node	-	none	GET	/	-	-	401	-
 os-single-04	L-O2	node	-	admin	GET	/_plugins/_security/authinfo	-	-	200	jq:.user_name == "admin" and (.roles | index("all_access")) != null
 os-single-05	L-O2	node	-	demo_admin	GET	/_plugins/_security/authinfo	-	-	401	-
@@ -10,10 +10,10 @@ os-single-08	L-O3	node	-	app_user	GET	/_plugins/_security/authinfo	-	-	200	jq:.u
 os-single-09	L-M1	node	-	admin	GET	/_nodes/jvm?filter_path=nodes.*.jvm.mem.heap_max_in_bytes	-	-	200	jq:[.nodes[].jvm.mem.heap_max_in_bytes] == [1073741824]
 os-single-10	L-C1	node	-	admin	GET	/_nodes/os?filter_path=nodes.*.os.allocated_processors	-	-	200	jq:[.nodes[].os.allocated_processors] == [1]
 os-single-11	health	node	-	admin	GET	/_cluster/health	-	-	200	jq:.status != "red"
-os-single-12	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	-	@bodies/bulk-own.ndjson	200	jq:.errors == false
-os-single-13	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	-	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
+os-single-12	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:.errors == false
+os-single-13	L-O3	node	-	app_user	POST	/app-a/_bulk?refresh=true	Content-Type: application/x-ndjson	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
 os-single-14	L-O3	node	-	app_user	GET	/secret/_search	-	-	403	-
-os-single-15	L-O3	node	-	app_user	PUT	/app-b	-	@bodies/index.json	403	-
+os-single-15	L-O3	node	-	app_user	PUT	/app-b	Content-Type: application/json	@bodies/index.json	403	-
 os-single-16	L-O3	node	-	app_user	DELETE	/app-a	-	-	403	-
 os-single-17	L-P1	os	denied	none	GET	/app-a/_search	-	-	abort	-
 os-single-18	L-P1	os	denied	app_user	GET	/app-a/_search	-	-	abort	-
@@ -42,9 +42,9 @@ os-single-40	L-P9	os	allowed	app_user	GET	/app-a%2A/_search	-	-	404	-
 os-single-41	L-P9	os	allowed	app_user	GET	/*/_search	-	-	404	-
 os-single-42	L-P9	os	allowed	app_user	GET	/_all/_search	-	-	404	-
 os-single-43	L-P10	os	allowed	app_user	GET	/%3Capp-%7Bnow%2Fd%7D%3E/_search	-	-	404	-
-os-single-44	L-P12	os	allowed	app_user	POST	/app-a/_bulk	-	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
-os-single-45	L-P13	os	allowed	app_user	POST	/app-a/_search	-	@bodies/search-script-agg.json	200	jq:.aggregations.by_script != null
-os-single-46	L-P14	os	allowed	app_user	POST	/app-a/_bulk	-	bytes:21000000	413	-
+os-single-44	L-P12	os	allowed	app_user	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-foreign.ndjson	200	jq:.errors == true and .items[0].index.status == 403
+os-single-45	L-P13	os	allowed	app_user	POST	/app-a/_search	Content-Type: application/json	@bodies/search-script-agg.json	200	jq:.aggregations.by_script != null
+os-single-46	L-P14	os	allowed	app_user	POST	/app-a/_bulk	Content-Type: application/x-ndjson	bytes:21000000	413	-
 os-single-47	L-P15	os	allowed	app_user	POST	/app-a/_search	X-HTTP-Method-Override: DELETE	-	200	jq:.hits != null
 os-single-48	L-P15	node	-	admin	GET	/app-a/_count	-	-	200	jq:.count >= 1
 os-single-49	L-P17	os	allowed	app_user	POST	/_msearch	-	-	404	-

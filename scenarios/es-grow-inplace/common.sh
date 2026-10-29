@@ -70,6 +70,34 @@ es_ok() {
 	esac
 }
 
+# wait_ready SVC PATH: GET PATH on SVC until it answers 200. A node that
+# compose reports healthy, or one whose security index is being restored, can
+# answer 503 ("failed to retrieve password hash for reserved user") or 401
+# until the .security-7 primary is assigned. 401, 408 (health timeout), 503
+# and no answer are retried until READY_TIMEOUT seconds (default 180) have
+# passed; anything else fails at once.
+wait_ready() {
+	local timeout=${READY_TIMEOUT:-180} start=$SECONDS attempt=0 res status
+	[[ $timeout =~ ^[0-9]+$ ]] || { echo "error: READY_TIMEOUT must be a number of seconds" >&2; return 1; }
+	while :; do
+		attempt=$((attempt + 1))
+		res=$(es "$1" GET "$2" </dev/null 2>/dev/null)
+		status=${res##*$'\n'}
+		[[ $status =~ ^[0-9]{3}$ ]] || status=000
+		case $status in
+		200) return 0 ;;
+		401 | 408 | 503 | 000) ;;
+		*) echo "error: $1: GET $2 returned $status: ${res%$'\n'*}" >&2; return 1 ;;
+		esac
+		if [ $((SECONDS - start)) -ge "$timeout" ]; then
+			echo "error: $1: GET $2 not ready after ${timeout}s ($attempt attempts), last answer $status: ${res%$'\n'*}" >&2
+			return 1
+		fi
+		echo "waiting for $1 $2: attempt $attempt answered $status, $((SECONDS - start))s of ${timeout}s" >&2
+		sleep 3
+	done
+}
+
 # es_status SVC METHOD PATH: only the status.
 es_status() {
 	es "$@" </dev/null | tail -n1

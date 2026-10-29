@@ -2,13 +2,21 @@
 
 One OpenSearch 3.9.0 node with the security plugin on, the demo configuration off, its own CA, node and admin certificates generated with openssl, HTTPS on the node, and Caddy in front with an IP allowlist, a path and method allowlist and a body size limit. It is the OpenSearch counterpart of `es-single` and the scenario behind the "OpenSearch differences" block of the guide's security page.
 
-**Tested on: NOT YET TESTED.** Nothing in this directory has been run against a real OpenSearch node. Static checks only (see the end of this file). Every expectation in `expected.tsv` is a hypothesis until the lab run records it.
+**Tested on 2026-10-29**, host `laptop-6c32g-nvme-01` (the author's laptop: Linux, cgroup v2, 12 logical CPUs, about 15.5 GiB RAM, Docker 29.9.1, Compose 5.6.0), with OpenSearch 3.9.0 and Caddy 2.11.7 as pinned in `versions.env`. Result: 62 of 62 rows pass, `results/tests/2026-10-29-os-single.tap`.
+
+The first run the same day passed 48 of 62. Its failures, and what they turned out to be:
+
+- `os-single-01`, `-02`, `-12`, `-13`, `-15`, `-44`, `-45` (setup, L-O3, L-P12, L-P13): the body rows sent no `Content-Type`, curl labelled them `application/x-www-form-urlencoded`, and OpenSearch answered 406. The rows now name the type, and the runner refuses a body row without one.
+- `os-single-20`, `-21`, `-47`, `-48`, `-58` (L-P3, L-P15): 404 `index_not_found_exception` for `app-a`, a cascade of the failed index creation in row 01.
+- `os-single-17`, `-18` (L-P1): Caddy did abort, but over HTTP/2 curl reports the stream reset as exit 92, which the runner did not count as `abort`. Fixed in the runner.
+
+Not tested: L-O1 (no transport certificates, a separate variant), `init-security.sh --apply` (`securityadmin.sh`), `compose.bench.yaml` and every benchmark, and an `app_writer` without `indices:data/write/index` (a create-only role like the Elasticsearch scenarios' `create_doc`).
 
 ## How this differs from es-single
 
 Be clear about this before copying anything: OpenSearch is not Elasticsearch with a different image name.
 
-- **Certificates on day one, even for one node.** "TLS is optional for the REST layer and mandatory for the transport layer" ([TLS settings](https://docs.opensearch.org/latest/security/configuration/tls/)). Elasticsearch lets a single node run with security on and no certificates; OpenSearch documents no such exception. `es-single` has no certificates; this scenario cannot work without `certs/gen-certs.sh`. Whether the plugin refuses to start without transport certificates on `discovery.type: single-node` is lab test L-O1, not yet run.
+- **Certificates on day one, even for one node.** "TLS is optional for the REST layer and mandatory for the transport layer" ([TLS settings](https://docs.opensearch.org/latest/security/configuration/tls/)). Elasticsearch lets a single node run with security on and no certificates; OpenSearch documents no such exception. `es-single` has no certificates; this scenario cannot work without `certs/gen-certs.sh`. Whether the plugin refuses to start without transport certificates on `discovery.type: single-node` is lab test L-O1, not yet run (the 2026-10-29 run used certificates).
 - **HTTPS on the node, too.** `securityadmin.sh` "requires SSL/TLS HTTP to be enabled for your OpenSearch cluster" ([securityadmin](https://docs.opensearch.org/latest/security/configuration/security-admin/)). So the node serves HTTPS and Caddy connects to it over HTTPS, verifying the lab CA. This deviates from the plan's "HTTP TLS off on the node", which `securityadmin.sh` rules out. The certificate exists anyway for transport, so HTTPS costs nothing extra to set up.
 - **The demo configuration is off and must stay off.** The image entrypoint runs `install_demo_configuration.sh` unless `DISABLE_INSTALL_DEMO_CONFIG=true` ([entrypoint](https://github.com/opensearch-project/opensearch-build/blob/main/docker/release/config/opensearch/opensearch-docker-entrypoint-default.x.sh)). The demo certificates and keys are public.
 - **The image's own users are demo users.** The security plugin's default `internal_users.yml` contains `admin`, `kibanaserver`, `readall`, `logstash`, `snapshotrestore` and others with publicly known bcrypt hashes ([3.9.0.0 config](https://github.com/opensearch-project/security/blob/3.9.0.0/config/internal_users.yml)). Disabling the demo installer does not remove them. This scenario mounts its own `internal_users.yml`, `roles.yml` and `roles_mapping.yml` over the image files; `expected.tsv` checks that the demo passwords no longer work.
@@ -96,16 +104,18 @@ Same format as `es-single/expected.tsv` (the runner in `tests/` owns the contrac
 | `from` | `allowed` or `denied`: a client whose address is inside or outside `ALLOWED_CIDRS`; `-` for `node` |
 | `auth` | `none`; `admin` (`ADMIN_PASSWORD`); `app_user` (user `APP_USER`, `app_x`, with `APP_PASSWORD`); `demo_admin`, `demo_kibanaserver`, `demo_readall` (the demo user with its well-known password, which is the user name, for the checks that the demo users are gone) |
 | `method`, `path` | sent verbatim (`curl --path-as-is`, percent-encoding untouched) |
-| `headers` | `-` or one `Name: value` header |
-| `body` | `-`, `@<file>` relative to the scenario directory (`.ndjson` as `application/x-ndjson`, `.json` as `application/json`), or `bytes:<n>` (n zero bytes) |
-| `expect_status` | HTTP status, alternatives joined with `\|`, or `abort` (connection closed without a response) |
+| `headers` | `-` or `Name: value` headers joined with `\|`. A row with a body must name its `Content-Type` here (`application/json` or `application/x-ndjson`); the runner refuses a body row without one |
+| `body` | `-`, `@<file>` relative to the scenario directory, or `bytes:<n>` (n bytes); sent as is, the file extension sets no type |
+| `expect_status` | HTTP status, alternatives joined with `\|`, or `abort` (no HTTP response: connection closed, or the HTTP/2 stream reset; see `tests/README.md`) |
 | `expect` | `-` or `jq:<expression>` (`jq -e` on the response body) |
+
+OpenSearch checks `Content-Type` strictly. curl labels a `--data-binary` body `application/x-www-form-urlencoded` when no type is given, and OpenSearch answers 406 `Content-Type header [application/x-www-form-urlencoded] is not supported`. In the first lab run (2026-10-29, OpenSearch 3.9.0) the body rows had no `Content-Type`: both index creations failed with 406 and every later row that needs `app-a` cascaded. Elasticsearch accepted the same requests, so the omission only showed here. Requests without a body (`POST /app-a/_count`, `DELETE /app-a`) send no `Content-Type` and are not affected.
 
 What the rows check, by lab test:
 
 - L-O2: no anonymous access (401 on `/` at the node); `admin` from the rendered users file has `all_access`; `admin:admin`, `kibanaserver:kibanaserver` and `readall:readall` are rejected.
-- L-O3: `app_x` is mapped to `app_writer`; `_bulk` into `app-a` works; a `_bulk` item with `"_index":"secret"` gets 403 inside a 200 response; `secret/_search`, creating `app-b` and deleting `app-a` get 403. The same foreign `_bulk` through Caddy is L-P12: Caddy passes it, only the role stops it.
-- L-M1: heap max is exactly 1 GiB. L-C1: `allocated_processors` is 1 with `cpus: 1`; a hypothesis, if it fails record the value and set `node.processors`.
+- L-O3: `app_x` is mapped to `app_writer`; `_bulk` into `app-a` works; a `_bulk` item with `"_index":"secret"` gets 403 inside a 200 response; `secret/_search`, creating `app-b` and deleting `app-a` get 403. The same foreign `_bulk` through Caddy is L-P12: Caddy passes it, only the role stops it. OBSERVED 2026-10-29: `bodies/bulk-own.ndjson`, an `index` action without `_id`, is accepted for `app_x` (`errors: false`, `os-single-12`), because this role grants `indices:data/write/index`; an `index` item naming `secret` gets a per-item 403 at the node and through Caddy (`os-single-13`, `os-single-44`). It was also the first document in `app-a`, so `app_writer` is sufficient for a bulk write that adds a dynamic mapping; whether each of its permissions is necessary was not tested.
+- L-M1: heap max is exactly 1 GiB. L-C1: `allocated_processors` is 1 with `cpus: 1`. Both OBSERVED 2026-10-29 (`os-single-09`, `os-single-10`), so `node.processors` is not needed here.
 - L-P1 to L-P20 except L-P11 and L-P16: non-allowlisted peers are aborted even with valid credentials; allowlisted without credentials get 401 from OpenSearch; admin paths, encoded, case, dot-segment (also in front of an app route, such as `/secret/../app-a/_search`), doubled-slash, comma, wildcard and date-math variants get 404 from Caddy even with admin credentials; a scripted aggregation passes every layer (not covered); a 21 MB body gets 413; `X-HTTP-Method-Override: DELETE` has no effect (the index still has documents afterwards); `_msearch`, point in time, asynchronous search, scroll, single-document writes, `_delete_by_query`, `DELETE` and `/` get 404.
 - L-P11 (raw or decoded path upstream) and L-P16 (absolute-form request line) need the echo upstream and a raw socket and belong to `tests/proxy-matrix.tsv`. L-O1 (no certificates) needs a deliberately broken variant and is not a row here.
 
@@ -115,8 +125,10 @@ L-P14 needs a live upstream: in a local check with an unreachable upstream, a 21
 
 `compose.bench.yaml` is the override `bench/run.sh --engine os` requires. It publishes the node on `127.0.0.1:9200`, switches the node to plain HTTP so that the loader and `run.sh` talk to it exactly as they talk to Elasticsearch, replaces the data volume with a bind mount of `$BENCH_DATA_DIR`, and keeps Caddy from starting (`profiles: [proxy]`). Authentication stays on: `run.sh` logs in as `admin` with `LOADER_PASSWORD`, which must be `ADMIN_PASSWORD` from `.env`. `BENCH_DATA_DIR` must be writable by uid 1000. HTTP TLS is off only in the benchmark, so the numbers do not include TLS cost on either engine.
 
-## Not verified (needs the lab run)
+## Verified by the lab run, and not
 
-Everything that needs a running node: that the node starts with these files, that the security index initializes from them, the healthcheck (it expects 401 without credentials once security is initialized and assumes `curl` exists in the image), that the environment override of `plugins.security.ssl.http.enabled` behaves as described, the exact `hash.sh` output format, that `securityadmin.sh -h os01 -p 9200` works with this certificate, the exact permissions `app_writer` needs for `_bulk` with dynamic mapping, and every row of `expected.tsv`.
+Shown by the run on 2026-10-29: the node starts with these files and serves HTTPS; the security index initializes from the mounted files (`admin` has `all_access`, `os-single-04`; the demo passwords are rejected, `-05` to `-07`); the healthcheck lets `compose up --wait` complete; `init-security.sh` and its `hash.sh` output produce users that authenticate; `app_writer` is sufficient for `_bulk` with dynamic mapping; every row of `expected.tsv`.
+
+Still not verified: that `compose.bench.yaml`'s override of `plugins.security.ssl.http.enabled` switches the node to plain HTTP; that `securityadmin.sh -h os01 -p 9200` (`init-security.sh --apply`) works with this certificate; which `app_writer` permissions are strictly necessary; L-O1.
 
 Static checks done when this was written: `docker compose config` with `.env.example` (base and with `compose.bench.yaml`), `caddy fmt` / `caddy validate` / `caddy adapt` with Caddy 2.11.7, the proxy-only matrix (`tests/run-proxy-matrix.sh --engine os`, 93 of 93 rows), `gen-certs.sh` run and its output verified with `openssl verify` and a TLS handshake, `init-security.sh` run against a stub `docker`, `bash -n`, YAML, JSON and TSV well-formedness.

@@ -17,7 +17,7 @@ need_running es00
 
 say "starting es01, es02, es03 (cluster es-grow-new)"
 "${compose[@]}" up -d --wait es01 es02 es03
-es_ok es01 GET '/_cluster/health?wait_for_status=green&wait_for_nodes=3&timeout=120s' </dev/null >/dev/null
+wait_ready es01 '/_cluster/health?wait_for_status=green&wait_for_nodes=3&timeout=30s'
 assert_new_cluster
 say "es00 cluster_uuid $(cluster_uuid es00), new cluster_uuid $(cluster_uuid es01): two separate clusters, as intended"
 

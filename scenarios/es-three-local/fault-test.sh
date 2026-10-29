@@ -8,8 +8,10 @@
 # Brings the scenario up itself with ALLOWED_CIDRS set to a client network it
 # creates (FAULT_CLIENT_SUBNET, default 10.231.3.0/24), runs setup-roles.sh,
 # prints TAP (also written to results/tests/<date>-es-three-local-fault.tap)
-# and runs down -v at the end unless --keep-up. Every expectation below the
-# baseline is a HYPOTHESIS written before the first run; see README.md.
+# and runs down -v at the end unless --keep-up. FAULT_WRITE_TIMEOUT (seconds,
+# default 30) is the client timeout of the L-T2 write without a master. Every
+# expectation below the baseline is a HYPOTHESIS written before the first run;
+# see README.md.
 set -euo pipefail
 
 dir=$(cd "$(dirname "$0")" && pwd)
@@ -21,7 +23,7 @@ keep_up=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--keep-up) keep_up=1; shift ;;
-	-h | --help) sed -n '2,12p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,14p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 done
@@ -82,6 +84,19 @@ curl -sS -k --max-time 30 -w "\n%{http_code}" -X POST -H "Content-Type: applicat
 	--resolve "$3" --data-binary @- -K <(printf "header = \"Authorization: ApiKey %s\"\n" "$key") \
 	"https://$2$1"'
 
+# The same request with diagnostics, for checks where "no HTTP response" must
+# be told apart from an error status: the first three lines are the curl exit
+# code, "<status> <time_total>" and curl's error message, then the body.
+# shellcheck disable=SC2016 # expanded inside the client container
+proxy_diag_remote='IFS= read -r key
+b=$(mktemp) e=$(mktemp)
+w=$(curl -sS -k --max-time "$4" -o "$b" -w "%{http_code} %{time_total}" -X POST \
+	-H "Content-Type: application/x-ndjson" --resolve "$3" --data-binary @- \
+	-K <(printf "header = \"Authorization: ApiKey %s\"\n" "$key") "https://$2$1" 2>"$e")
+rc=$?
+printf "%s\n%s\n%s\n" "$rc" "${w:-000 0}" "$(tr "\n" " " <"$e" | head -c 300)"
+cat "$b"'
+
 # es_node SVC METHOD PATH [TIMEOUT] < body: response body, then the status on its
 # own line; status 000 when curl got no answer.
 es_node() {
@@ -94,6 +109,25 @@ proxy() {
 	{ printf '%s\n' "$APP_API_KEY"; cat; } |
 		docker run --rm -i --network "$net" --entrypoint bash "$image" -c "$proxy_remote" _ \
 			"$1" "$site" "$site:443:$caddy_ip" 2>/dev/null || true
+}
+
+# proxy_diag PATH MAX_TIME < body: proxy_diag_remote's output.
+proxy_diag() {
+	{ printf '%s\n' "$APP_API_KEY"; cat; } |
+		docker run --rm -i --network "$net" --entrypoint bash "$image" -c "$proxy_diag_remote" _ \
+			"$1" "$site" "$site:443:$caddy_ip" "$2" 2>/dev/null || true
+}
+
+curl_exit_meaning() {
+	case $1 in
+	0) echo "a complete HTTP response" ;;
+	7) echo "connection refused" ;;
+	28) echo "client timeout (--max-time) before a complete response" ;;
+	52) echo "connection closed without a response" ;;
+	56) echo "connection reset while reading" ;;
+	92) echo "HTTP/2 stream reset" ;;
+	*) echo "see curl(1), EXIT CODES" ;;
+	esac
 }
 
 status_of() { printf '%s' "${1##*$'\n'}"; }
@@ -187,12 +221,20 @@ assert_match "$(status_of "$res")" '^503$' "L-T2: cluster health without a maste
 tap_diag "  health body: $(body_of "$res" | head -c 300)"
 res=$(echo '{"query":{"match_all":{}}}' | proxy /app-a/_search)
 tap_diag "  measured: search through Caddy without a master: status $(status_of "$res"), body $(body_of "$res" | head -c 300)"
-res=$(bulk_create t2-write)
-if [ "$(status_of "$res")" = 200 ] && body_of "$res" | jq -e '.errors == false' >/dev/null 2>&1; then
-	tap_not_ok "L-T2: bulk create without a master is rejected" "it was accepted: $(body_of "$res" | head -c 300)"
+write_timeout=${FAULT_WRITE_TIMEOUT:-30}
+started=$SECONDS
+res=$(printf '{"create":{"_id":"t2-write"}}\n{"message":"t2-write","@timestamp":"2026-01-01T00:00:00Z"}\n' |
+	proxy_diag '/app-a/_bulk?refresh=true' "$write_timeout")
+elapsed=$((SECONDS - started))
+{ read -r rc; read -r status took; read -r err; } <<<"$res"
+body=$(sed '1,3d' <<<"$res")
+diags=("curl exit ${rc:-none}: $(curl_exit_meaning "${rc:-}")" "status ${status:-000}, curl time_total ${took:-?}s, ${elapsed}s wall clock, --max-time ${write_timeout}s"
+	"curl error: ${err:-<none>}" "body: $(head -c 300 <<<"$body")")
+if [ "${rc:-}" = 0 ] && [ "$status" = 200 ] && jq -e '.errors == false' >/dev/null 2>&1 <<<"$body"; then
+	tap_not_ok "L-T2: bulk create without a master is not acknowledged" "it was accepted" "${diags[@]}"
 else
-	tap_ok "L-T2: bulk create without a master is rejected (status $(status_of "$res"))"
-	tap_diag "  body: $(body_of "$res" | head -c 300)"
+	tap_ok "L-T2: bulk create without a master is not acknowledged (status ${status:-000}, curl exit ${rc:-none}, ${elapsed}s)"
+	for d in "${diags[@]}"; do tap_diag "  $d"; done
 fi
 
 tap_diag "recovery: starting $first and ${survivors[0]}"

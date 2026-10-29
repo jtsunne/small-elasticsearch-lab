@@ -19,6 +19,7 @@ es-grow-restore-15	L-P1	es	denied	app_key	GET	/app-a/_search	-	-	abort	-
 es-grow-restore-16	L-P2	es	allowed	none	GET	/app-b/_search	-	-	401	-
 es-grow-restore-17	L-G1	es	allowed	app_key	GET	/app-b/_count	-	-	200	jq:.count >= 1000
 es-grow-restore-18	L-G1	es	allowed	app_key	GET	/app-a/_search?q=message:seed	-	-	200	jq:.hits.total.value >= 1
-es-grow-restore-19	L-G1	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == false) and (.items[0].create.status == 201)
+es-grow-restore-19	L-G1	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own-create.ndjson	200	jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201)
+es-grow-restore-22	L-G1	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index"))
 es-grow-restore-20	L-P4	es	allowed	app_key	GET	/_cluster/settings	-	-	404	-
 es-grow-restore-21	L-P20	es	allowed	none	GET	/	-	-	404	!contains:cluster_uuid

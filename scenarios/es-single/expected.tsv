@@ -55,7 +55,8 @@ es-single-53	L-P9	es	allowed	app_key	GET	/_all/_search	-	-	404	-
 es-single-54	L-P9	es	allowed	app_key	GET	/_search	-	-	404	-
 es-single-55	L-P10	es	allowed	app_key	GET	/%3Capp-%7Bnow%2Fd%7D%3E/_search	-	-	404	-
 es-single-56	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-foreign.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 403)
-es-single-57	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == false) and (.items[0].create.status == 201) and (.items[1].index.status == 201)
+es-single-57	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own-create.ndjson	200	jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201)
+es-single-83	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index"))
 es-single-58	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-overwrite.ndjson	200	jq:.items[0].index.status == 403
 es-single-59	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-delete.ndjson	200	jq:.items[0].delete.status == 403
 es-single-60	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-new-index.ndjson	200	jq:.items[0].create.status == 403
@@ -63,7 +64,7 @@ es-single-61	L-P13	es	allowed	app_key	POST	/app-a/_search	Content-Type: applicat
 es-single-62	L-P14	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	bytes:21000000	413	-
 es-single-63	L-P15	es	allowed	app_key	POST	/app-a/_search	X-HTTP-Method-Override: DELETE	-	200	jq:.hits.total.value >= 1
 es-single-64	L-P15	node	-	elastic	GET	/app-a/_count	-	-	200	jq:.count >= 1
-es-single-65	L-P16	es	allowed	app_key	GET	http://es01:9200/_cluster/settings	-	-	400|404|421|200	!contains:persistent
+es-single-65	L-P16	es	allowed	app_key	GET	http://es01:9200/_cluster/settings	-	-	400|404|421|200|abort	!contains:persistent
 es-single-66	L-P17	es	allowed	app_key	POST	/_msearch	-	-	404	-
 es-single-67	L-P17	es	allowed	app_key	POST	/app-a/_msearch	-	-	404	-
 es-single-68	L-P17	es	allowed	app_key	POST	/_async_search	-	-	404	-

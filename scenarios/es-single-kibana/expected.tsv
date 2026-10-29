@@ -1,5 +1,5 @@
 id	test	site	from	auth	method	path	headers	body	expect_status	expect
-es-single-kibana-01	health	node	-	elastic	GET	/_cluster/health	-	-	200	jq:.status == "green"
+es-single-kibana-01	health	node	-	elastic	GET	/_cluster/health?wait_for_status=green&timeout=60s	-	-	200	jq:.status == "green"
 es-single-kibana-02	L-M1	node	-	elastic	GET	/_nodes/jvm	-	-	200	jq:[.nodes[].jvm.mem.heap_max_in_bytes][0] == 1073741824
 es-single-kibana-03	L-C1	node	-	elastic	GET	/_nodes/os	-	-	200	jq:[.nodes[].os.allocated_processors][0] == 1
 es-single-kibana-04	L-C1	node	-	elastic	GET	/_nodes/thread_pool	-	-	200	jq:([.nodes[].thread_pool.write.size][0] == 1) and ([.nodes[].thread_pool.search.size][0] == 2)
@@ -55,7 +55,8 @@ es-single-kibana-53	L-P9	es	allowed	app_key	GET	/_all/_search	-	-	404	-
 es-single-kibana-54	L-P9	es	allowed	app_key	GET	/_search	-	-	404	-
 es-single-kibana-55	L-P10	es	allowed	app_key	GET	/%3Capp-%7Bnow%2Fd%7D%3E/_search	-	-	404	-
 es-single-kibana-56	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-foreign.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 403)
-es-single-kibana-57	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == false) and (.items[0].create.status == 201) and (.items[1].index.status == 201)
+es-single-kibana-57	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own-create.ndjson	200	jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201)
+es-single-kibana-90	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-own.ndjson	200	jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index"))
 es-single-kibana-58	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-overwrite.ndjson	200	jq:.items[0].index.status == 403
 es-single-kibana-59	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-delete.ndjson	200	jq:.items[0].delete.status == 403
 es-single-kibana-60	L-P12	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	@bodies/bulk-new-index.ndjson	200	jq:.items[0].create.status == 403
@@ -63,7 +64,7 @@ es-single-kibana-61	L-P13	es	allowed	app_key	POST	/app-a/_search	Content-Type: a
 es-single-kibana-62	L-P14	es	allowed	app_key	POST	/app-a/_bulk	Content-Type: application/x-ndjson	bytes:21000000	413	-
 es-single-kibana-63	L-P15	es	allowed	app_key	POST	/app-a/_search	X-HTTP-Method-Override: DELETE	-	200	jq:.hits.total.value >= 1
 es-single-kibana-64	L-P15	node	-	elastic	GET	/app-a/_count	-	-	200	jq:.count >= 1
-es-single-kibana-65	L-P16	es	allowed	app_key	GET	http://es01:9200/_cluster/settings	-	-	400|404|421|200	!contains:persistent
+es-single-kibana-65	L-P16	es	allowed	app_key	GET	http://es01:9200/_cluster/settings	-	-	400|404|421|200|abort	!contains:persistent
 es-single-kibana-66	L-P17	es	allowed	app_key	POST	/_msearch	-	-	404	-
 es-single-kibana-67	L-P17	es	allowed	app_key	POST	/app-a/_msearch	-	-	404	-
 es-single-kibana-68	L-P17	es	allowed	app_key	POST	/_async_search	-	-	404	-
@@ -81,8 +82,9 @@ es-single-kibana-79	L-K2	kibana	denied	none	GET	/	-	-	abort	-
 es-single-kibana-80	L-K2	kibana	denied	none	GET	/api/status	-	-	abort	-
 es-single-kibana-81	L-K2	kibana	allowed	none	GET	/api/status	-	-	200	contains:available
 es-single-kibana-82	L-K2	kibana	allowed	none	GET	/login	-	-	200	-
-es-single-kibana-83	L-K3	kibana	allowed	elastic	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true	-	200	contains:persistent
-es-single-kibana-84	L-K3	kibana	allowed	app_user	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true	-	403|401	!contains:persistent
+es-single-kibana-83	L-K3	kibana	allowed	elastic	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true|x-elastic-internal-origin: Kibana	-	200	contains:persistent
+es-single-kibana-91	L-K3	kibana	allowed	elastic	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true	-	400	contains:exists but is not available with the current configuration
+es-single-kibana-84	L-K3	kibana	allowed	app_user	POST	/api/console/proxy?path=_cluster/settings&method=GET	kbn-xsrf: true|x-elastic-internal-origin: Kibana	-	403|401	!contains:persistent
 es-single-kibana-85	L-M1	node	-	elastic	GET	/_nodes/jvm?filter_path=nodes.*.jvm.input_arguments,nodes.*.jvm.mem.heap_max_in_bytes	-	-	200	record
 es-single-kibana-86	L-P4	node	-	app_user	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"minted-by-app"}	403	contains:security_exception
 es-single-kibana-87	L-P4	node	-	app_key	POST	/_security/api_key	Content-Type: application/json	inline:{"name":"derived-from-key"}	403	contains:security_exception

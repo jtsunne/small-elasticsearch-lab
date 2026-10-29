@@ -29,7 +29,7 @@ es_ok es01 PUT '/app-*/_settings' >/dev/null <<'JSON'
 {"index.number_of_replicas": 1}
 JSON
 start=$SECONDS
-es_ok es01 GET '/_cluster/health?wait_for_status=green&timeout=300s' </dev/null >/dev/null ||
-	die "not green within 300s: $(es_ok es01 GET /_cluster/health </dev/null)"
+READY_TIMEOUT=${READY_TIMEOUT:-300} wait_ready es01 '/_cluster/health?wait_for_status=green&timeout=30s' ||
+	die "not green: $(es_ok es01 GET /_cluster/health </dev/null)"
 say "green after $((SECONDS - start))s"
 es_ok es01 GET '/_cat/shards/app-*?h=index,prirep,state,node&s=index' </dev/null

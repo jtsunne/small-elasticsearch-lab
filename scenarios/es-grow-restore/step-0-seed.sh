@@ -31,7 +31,7 @@ fi
 say "starting es00 and caddy"
 "${compose[@]}" up -d --wait es00 caddy
 
-es_ok es00 GET '/_cluster/health?wait_for_status=yellow&timeout=60s' </dev/null >/dev/null
+wait_ready es00 '/_cluster/health?wait_for_status=yellow&timeout=30s'
 
 say "index template app (1 shard, 0 replicas), role app_writer, user app_x"
 es_ok es00 PUT /_index_template/app >/dev/null <<'JSON'

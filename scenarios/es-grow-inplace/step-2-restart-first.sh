@@ -20,10 +20,8 @@ fi
 say "recreating es01 with the cluster configuration (Caddy gets errors until it is back)"
 start=$SECONDS
 "${compose[@]}" up -d --no-deps --wait es01
-until [ "$(es_status es01 GET '/_cluster/health?wait_for_status=yellow&timeout=5s')" = 200 ]; do
-	[ $((SECONDS - start)) -lt 300 ] || die "es01 not serving 300s after the restart; check: docker compose logs es01"
-	sleep 1
-done
+READY_TIMEOUT=${READY_TIMEOUT:-300} wait_ready es01 '/_cluster/health?wait_for_status=yellow&timeout=5s' ||
+	die "es01 not serving after the restart; check: docker compose logs es01"
 say "es01 back after $((SECONDS - start))s"
 
 got=$(cluster_uuid es01)

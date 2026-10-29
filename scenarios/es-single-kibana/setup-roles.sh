@@ -4,6 +4,7 @@
 # elastic. Run it again to rotate: it creates a new key, see README.md.
 #
 # Usage: setup-roles.sh [--key-out FILE]
+# READY_TIMEOUT (seconds, default 180) bounds the wait for the cluster.
 #
 # The node publishes no port and Caddy does not proxy _security, so every call
 # runs curl inside the es01 container against 127.0.0.1:9200. Passwords reach
@@ -71,6 +72,34 @@ es_ok() {
 	esac
 }
 
+# wait_ready PATH: GET PATH until it answers 200. compose up --wait returns
+# when the node answers HTTP, which can be before the .security-7 primary is
+# assigned; until then even elastic fails with 503 ("failed to retrieve
+# password hash for reserved user"), or 401. 401, 408 (health timeout), 503
+# and no answer are retried until READY_TIMEOUT seconds (default 180) have
+# passed; anything else fails at once.
+wait_ready() {
+	local timeout=${READY_TIMEOUT:-180} start=$SECONDS attempt=0 res status
+	[[ $timeout =~ ^[0-9]+$ ]] || { echo "error: READY_TIMEOUT must be a number of seconds" >&2; return 1; }
+	while :; do
+		attempt=$((attempt + 1))
+		res=$(es GET "$1" </dev/null 2>/dev/null) || true
+		status=${res##*$'\n'}
+		[[ $status =~ ^[0-9]{3}$ ]] || status=000
+		case "$status" in
+		200) return 0 ;;
+		401 | 408 | 503 | 000) ;;
+		*) echo "error: GET $1 returned $status: ${res%$'\n'*}" >&2; return 1 ;;
+		esac
+		if [ $((SECONDS - start)) -ge "$timeout" ]; then
+			echo "error: GET $1 not ready after ${timeout}s ($attempt attempts), last answer $status: ${res%$'\n'*}" >&2
+			return 1
+		fi
+		echo "waiting for $1: attempt $attempt answered $status, $((SECONDS - start))s of ${timeout}s" >&2
+		sleep 3
+	done
+}
+
 create_index_once() {
 	if [ "$(es GET "/$1" </dev/null | tail -n1)" = 404 ]; then
 		es_ok PUT "/$1" >/dev/null
@@ -80,7 +109,7 @@ create_index_once() {
 "${compose[@]}" ps --status running -q es01 | grep -q . ||
 	{ echo "error: es01 is not running, start it with make up SCENARIO=$(basename "$dir")" >&2; exit 1; }
 
-es_ok GET '/_cluster/health?wait_for_status=yellow&timeout=60s' </dev/null >/dev/null
+wait_ready '/_cluster/health?wait_for_status=yellow&timeout=30s'
 
 es_ok PUT /_index_template/app >/dev/null <<'JSON'
 {
