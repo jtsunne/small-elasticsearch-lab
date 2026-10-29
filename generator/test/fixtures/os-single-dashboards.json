@@ -1,0 +1,20 @@
+{
+	"path": "scenarios/os-single-dashboards",
+	"inputs": {
+		"engine": "os",
+		"scenario": "single-ui",
+		"memoryGiB": 2,
+		"cpus": 1,
+		"apiHost": "os.localhost",
+		"uiHost": "dashboards.localhost",
+		"allowedCidrs": [
+			"203.0.113.10/32",
+			"198.51.100.0/24"
+		],
+		"indexPrefix": "app",
+		"readRoute": true,
+		"writeRoute": true,
+		"maxBodyMB": 20,
+		"apiKeyDays": 30
+	}
+}

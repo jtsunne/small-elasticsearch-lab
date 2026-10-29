@@ -1,0 +1,29 @@
+{
+	"_comment": "The subset of the site's data/es.toml (hugo.Data.es) that the generator reads, as of versions_checked. Keep in step with the site.",
+	"meta": {
+		"versions_checked": "2026-10-26",
+		"companion_tag": "v0.1.0"
+	},
+	"es": {
+		"heap": {
+			"small_threshold_mb": 1024,
+			"small_ratio": 0.4,
+			"small_floor_mb": 128,
+			"ratio": 0.5,
+			"master_ratio": 0.6,
+			"cap_gb": 31
+		}
+	},
+	"os": {
+		"heap": {
+			"default_mb": 1024,
+			"compose_example_mb": 512
+		},
+		"sysctl": {
+			"max_map_count": 262144
+		}
+	},
+	"sysctl": {
+		"es_max_map_count": 1048576
+	}
+}

@@ -1,0 +1,19 @@
+{
+	"path": "scenarios/es-single",
+	"inputs": {
+		"engine": "es",
+		"scenario": "single",
+		"memoryGiB": 2,
+		"cpus": 1,
+		"apiHost": "es.localhost",
+		"uiHost": "kibana.localhost",
+		"allowedCidrs": [
+			"127.0.0.1/32"
+		],
+		"indexPrefix": "app",
+		"readRoute": true,
+		"writeRoute": true,
+		"maxBodyMB": 20,
+		"apiKeyDays": 30
+	}
+}
