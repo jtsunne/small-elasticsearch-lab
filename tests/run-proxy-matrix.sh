@@ -23,8 +23,10 @@
 #   --env-file FILE     KEY=VALUE lines exported while adapting the Caddyfile,
 #                       for {$VAR} placeholders in it
 #   --server NAME       Caddy server to test when the config has several
-#   --host NAME         Host header (default: the first host matcher of the
-#                       tested server, or 127.0.0.1)
+#   --host NAME         Host header. Default: the only host matcher of the
+#                       tested server, else the only one starting with
+#                       "<engine>.", else 127.0.0.1 when there is none; any
+#                       other case stops with the hosts found
 #   --verbose           print what the upstream received for every row
 #   --keep              keep the work directory
 #   lab mode only:
@@ -223,10 +225,18 @@ start_proxy_only() {
 	' "$work/adapted.json" >"$work/caddy.json"
 
 	local hosts
-	hosts=$(jq -r --arg s "$server" '[.apps.http.servers[$s].routes[]?.match[]?.host[]?] | join(" ")' "$work/caddy.json")
+	hosts=$(jq -r --arg s "$server" '[.apps.http.servers[$s].routes[]?.match[]?.host[]?] | unique | join(" ")' "$work/caddy.json")
 	if [ -z "$host" ]; then
-		host=$(jq -r --arg s "$server" --arg e "$engine." '[.apps.http.servers[$s].routes[]?.match[]?.host[]?]
-			| (map(select(startswith($e))) + .) | first // "127.0.0.1"' "$work/caddy.json")
+		# Falling back to the first of several sites would run the engine rows
+		# against whatever site comes first, such as a Dashboards site.
+		host=$(jq -r --arg s "$server" --arg e "$engine." '[.apps.http.servers[$s].routes[]?.match[]?.host[]?] | unique
+			| map(select(startswith($e))) as $engine_hosts
+			| if length == 0 then "127.0.0.1"
+			  elif length == 1 then first
+			  elif ($engine_hosts | length) == 1 then $engine_hosts[0]
+			  else empty end' "$work/caddy.json")
+		[ -n "$host" ] ||
+			die "server $server has several site hosts ($hosts) and not exactly one starts with '$engine.'; pass --host NAME"
 	fi
 
 	HOME=$work XDG_CONFIG_HOME=$work/xdg-config XDG_DATA_HOME=$work/xdg-data \
