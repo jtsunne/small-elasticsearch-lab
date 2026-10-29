@@ -15,7 +15,7 @@
 #       service named es<N> or os<N>)
 #   CADDY_SERVICE         proxy service (default caddy)
 #   APP_USER              user behind the app_user credential (default: APP_USER
-#       from .env, else app for os-* scenarios and app_x for the others)
+#       from .env, else app_x)
 #   RESULTS_DIR           where the TAP copy and recorded bodies go (default
 #       results/tests)
 set -euo pipefail
@@ -113,7 +113,6 @@ auth_config() {
 		user=$(tenv APP_USER 2>/dev/null) || user=
 		if [ -z "$user" ] || [ "$user" == "<APP_USER>" ]; then
 			user=app_x
-			[[ $scenario == os-* ]] && user=app
 		fi
 		var=APP_PASSWORD
 		;;
