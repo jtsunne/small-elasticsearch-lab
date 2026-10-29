@@ -10,3 +10,4 @@ bench/work/
 bench/results/*/raw/
 bench/loader/loader
 /bin/
+scenarios/*/snapshots/
