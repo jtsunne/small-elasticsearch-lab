@@ -1,0 +1,29 @@
+TAP version 13
+# scenario: es-grow-inplace (scenarios/es-grow-inplace/expected.tsv)
+# up: project es-grow-inplace
+# node: es01 at http://127.0.0.1:9200 (from inside the container)
+# clients: allowed from 10.231.1.0/24, denied from 10.231.2.0/24 (allowlist variables set to 10.231.1.0/24)
+ok 1 - es-grow-inplace-01 [health] GET /_cluster/health?wait_for_status=green&timeout=60s -> 200 (jq:(.status == "green") and (.number_of_nodes == 3) and (.cluster_name == "es-grow-inplace"))
+ok 2 - es-grow-inplace-02 [L-G2] GET /_nodes?filter_path=nodes.*.name,nodes.*.roles -> 200 (jq:([.nodes[].name] | sort == ["es01","es02","es03"]) and all(.nodes[]; .roles | index("master") != null))
+ok 3 - es-grow-inplace-03 [L-G2] GET /_cluster/state/metadata?filter_path=metadata.cluster_coordination.last_committed_config -> 200 (jq:.metadata.cluster_coordination.last_committed_config | length == 3)
+ok 4 - es-grow-inplace-04 [L-G2] GET /_nodes/settings?filter_path=nodes.*.settings.discovery.type -> 200 (jq:all(.nodes[]?; .settings.discovery.type != "single-node"))
+ok 5 - es-grow-inplace-05 [L-G2] GET /_nodes/settings?filter_path=nodes.*.settings.cluster.initial_master_nodes -> 200 (jq:. == {})
+ok 6 - es-grow-inplace-06 [L-G2] GET /_nodes/settings?filter_path=nodes.*.settings.xpack.security.transport.ssl.enabled -> 200 (jq:[.nodes[].settings.xpack.security.transport.ssl.enabled] == ["true","true","true"])
+ok 7 - es-grow-inplace-07 [L-G2] GET /_cat/indices/app-*?format=json&h=index,rep,health -> 200 (jq:([.[].index] | sort == ["app-a","app-b"]) and all(.[]; (.rep == "1") and (.health == "green")))
+ok 8 - es-grow-inplace-08 [L-G2] GET /_cat/shards/app-*?format=json&h=index,prirep,state,node -> 200 (jq:(length == 4) and all(.[]; .state == "STARTED") and ([group_by(.index)[] | map(.node) | unique | length] == [2,2]))
+ok 9 - es-grow-inplace-09 [L-G2] GET /app-b/_count -> 200 (jq:.count == 1000)
+ok 10 - es-grow-inplace-10 [L-G2] GET /_index_template/app -> 200 (jq:.index_templates[0].index_template.template.settings.index.number_of_replicas == "1")
+ok 11 - es-grow-inplace-11 [L-G2] GET /_security/_authenticate -> 200 (jq:(.authentication_type == "api_key") and (.api_key.name == "app-x-key"))
+ok 12 - es-grow-inplace-12 [L-G2] GET /_snapshot/grow/before-grow -> 200 (jq:.snapshots[0].state == "SUCCESS")
+ok 13 - es-grow-inplace-13 [L-N1] GET http://127.0.0.1:9200/ -> refused
+ok 14 - es-grow-inplace-14 [L-P1] GET /app-a/_search -> abort
+ok 15 - es-grow-inplace-15 [L-P2] GET /app-b/_search -> 401
+ok 16 - es-grow-inplace-16 [L-G2] GET /app-b/_count -> 200 (jq:.count >= 1000)
+ok 17 - es-grow-inplace-17 [L-G2] GET /app-b/_count -> 200 (jq:.count >= 1000)
+ok 18 - es-grow-inplace-18 [L-G2] GET /app-b/_count -> 200 (jq:.count >= 1000)
+ok 19 - es-grow-inplace-19 [L-G2] POST /app-a/_bulk -> 200 (jq:(.errors == false) and (.items | length == 2) and all(.items[]; .create.status == 201))
+ok 20 - es-grow-inplace-22 [L-G2] POST /app-a/_bulk -> 200 (jq:(.errors == true) and (.items[0].create.status == 201) and (.items[1].index.status == 403) and (.items[1].index.error.reason | contains("op_type/index")))
+ok 21 - es-grow-inplace-20 [L-P4] GET /_cluster/settings -> 404
+ok 22 - es-grow-inplace-21 [L-P20] GET / -> 404 (!contains:cluster_uuid)
+1..22
+# tests 22, failed 0, skipped 0
