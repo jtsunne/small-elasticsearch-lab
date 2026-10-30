@@ -2,7 +2,8 @@
 # Lab test L-M2: the same synthetic bulk load into a single Elasticsearch node
 # in a 2 GiB container (scenarios/bad-heap), once with a deliberately large
 # heap ("bad") and once with half of the container ("control"). Records loader
-# output, cgroup memory samples, OOM state and the container log for each run.
+# output, cgroup memory samples, JVM GC samples, OOM state and the container
+# log for each run.
 # See bench/README.md, section "l-m2.sh".
 set -euo pipefail
 
@@ -26,8 +27,15 @@ Experiment parameters, environment variables with the values of the
   LM2_BAD_HEAP=1536m      heap of the "bad" run (-Xms and -Xmx)
   LM2_CONTROL_HEAP=1g     heap of the "control" run
   LM2_TIMEOUT=1500        seconds before a loader run is stopped
-  LM2_SAMPLE_S=10         seconds between cgroup memory samples
+  LM2_SAMPLE_S=10         seconds between memory and node stats samples
   BENCH_ES_CPUSET=1       host CPU the node is pinned to (compose.bench.yaml)
+
+Controls added after the 2026-10-29 run (the defaults reproduce that run):
+  LM2_SWAP=default        default: the container may swap as Docker allows;
+                          off: memswap_limit equal to mem_limit (2g), so the
+                          container gets no swap (memory.swap.max 0 on
+                          cgroup v2); the run stops if the node sees otherwise
+  LM2_ORDER=bad,control   run order: bad,control or control,bad
 EOF
 }
 
@@ -59,6 +67,9 @@ bad_heap="${LM2_BAD_HEAP:-1536m}"
 control_heap="${LM2_CONTROL_HEAP:-1g}"
 load_timeout="${LM2_TIMEOUT:-1500}"
 sample_s="${LM2_SAMPLE_S:-10}"
+swap_mode="${LM2_SWAP:-default}"
+order="${LM2_ORDER:-bad,control}"
+container_mem=2g
 export BENCH_ES_CPUSET="${BENCH_ES_CPUSET:-1}"
 url="http://127.0.0.1:9200"
 
@@ -85,6 +96,14 @@ done
 for h in "$bad_heap" "$control_heap"; do
 	[[ "$h" =~ ^[1-9][0-9]*[mMgG]$ ]] || die "heap sizes look like 1536m or 1g, got '$h'"
 done
+case "$swap_mode" in
+default | off) ;;
+*) die "LM2_SWAP must be default or off, got '$swap_mode'" ;;
+esac
+case "$order" in
+bad,control | control,bad) ;;
+*) die "LM2_ORDER must be bad,control or control,bad, got '$order'" ;;
+esac
 
 missing=()
 [ "$(uname -s)" = Linux ] || missing+=("Linux host")
@@ -135,11 +154,11 @@ tmp=$(mktemp -d)
 chmod 700 "$tmp"
 started_projects=()
 created_dirs=()
-monitor_pid=""
+monitor_pids=()
 
 cleanup() {
 	local p d
-	if [ -n "$monitor_pid" ]; then kill "$monitor_pid" 2>/dev/null || true; fi
+	for p in "${monitor_pids[@]}"; do kill "$p" 2>/dev/null || true; done
 	# By project label rather than through compose: the compose files need the
 	# password and data path, which may already be gone at this point.
 	for p in "${started_projects[@]}"; do
@@ -183,10 +202,75 @@ sample_memory() {
 	local cid="$1" file="$2" st mem
 	while :; do
 		st=$(docker inspect -f '{{.State.Status}} oom={{.State.OOMKilled}} restarts={{.RestartCount}} exit={{.State.ExitCode}}' "$cid" 2>&1 || true)
-		mem=$(docker exec "$cid" sh -c 'grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; cat /sys/fs/cgroup/memory.events | tr "\n" " "; printf "swap_current %s" "$(cat /sys/fs/cgroup/memory.swap.current 2>/dev/null || echo n/a)"' 2>&1 || true)
+		mem=$(docker exec "$cid" sh -c 'grep -E "^(anon|file|shmem|file_mapped|swapcached) " /sys/fs/cgroup/memory.stat | tr "\n" " "; cat /sys/fs/cgroup/memory.events | tr "\n" " "; printf "swap_current %s swap_max %s" "$(cat /sys/fs/cgroup/memory.swap.current 2>/dev/null || echo n/a)" "$(cat /sys/fs/cgroup/memory.swap.max 2>/dev/null || echo n/a)"' 2>&1 || true)
 		echo "$(date -u +%H:%M:%S) $st | $mem" >>"$file"
 		sleep "$sample_s"
 	done
+}
+
+nodestats_path="nodes.*.jvm.gc.collectors.*.collection_count,nodes.*.jvm.gc.collectors.*.collection_time_in_millis,nodes.*.jvm.mem.heap_used_percent,nodes.*.os.cgroup.memory"
+
+# A node that does not answer is a data point: it gets a line with ok false
+# and the curl exit code rather than no line.
+sample_nodestats_once() {
+	local file="$1" body="$2" ts rc code
+	ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+	rc=0
+	code=$(curl_node --max-time "$sample_s" -o "$body" -w '%{http_code}' \
+		"$url/_nodes/stats/jvm,os?filter_path=$nodestats_path" 2>/dev/null) || rc=$?
+	if [ "$rc" -eq 0 ] && [ "$code" = 200 ] && [ "$(head -c 1 "$body" 2>/dev/null)" = "{" ]; then
+		printf '{"t":"%s","ok":true,"curl_exit":0,"http_code":200,"stats":%s}\n' "$ts" "$(tr -d '\n' <"$body")" >>"$file"
+	else
+		printf '{"t":"%s","ok":false,"curl_exit":%d,"http_code":"%s"}\n' "$ts" "$rc" "${code:-000}" >>"$file"
+	fi
+}
+
+sample_nodestats() {
+	while :; do
+		sample_nodestats_once "$1" "$2"
+		sleep "$sample_s"
+	done
+}
+
+# Deltas are sums of increments between answered samples, so a restarted JVM
+# adds its new counter value instead of producing a negative delta.
+summarize_nodestats() {
+	awk -v label="$1" '
+	function num(s, coll, field,   o) {
+		if (!match(s, "\"" coll "\": *\\{[^}]*\\}")) return ""
+		o = substr(s, RSTART, RLENGTH)
+		if (!match(o, "\"" field "\": *[0-9]+")) return ""
+		o = substr(o, RSTART, RLENGTH)
+		sub(/.*: */, "", o)
+		return o + 0
+	}
+	BEGIN {
+		coll[1] = "young"; coll[2] = "old"
+		fname[1] = "count"; field[1] = "collection_count"
+		fname[2] = "time_ms"; field[2] = "collection_time_in_millis"
+	}
+	/"ok":false/ { failed++; next }
+	/"ok":true/ {
+		answered++
+		for (c = 1; c <= 2; c++) for (f = 1; f <= 2; f++) {
+			k = coll[c] "_" fname[f]
+			v = num($0, coll[c], field[f])
+			if (v == "") continue
+			if (k in prev) {
+				if (v >= prev[k]) delta[k] += v - prev[k]
+				else { delta[k] += v; resets[k]++ }
+			} else delta[k] += 0
+			prev[k] = v
+		}
+	}
+	END {
+		printf "%s_nodestats_samples: %d answered, %d not answered\n", label, answered, failed
+		for (c = 1; c <= 2; c++) for (f = 1; f <= 2; f++) {
+			k = coll[c] "_" fname[f]
+			if (k in delta) printf "%s_gc_%s_delta: %d%s\n", label, k, delta[k], (resets[k] ? " (counter reset " resets[k] " times)" : "")
+			else printf "%s_gc_%s_delta: n/a\n", label, k
+		}
+	}' "$2"
 }
 
 run_one() {
@@ -203,6 +287,12 @@ services:
     environment:
       - ES_JAVA_OPTS=-Xms$heap -Xmx$heap
 EOF
+	if [ "$swap_mode" = off ]; then
+		cat >>"$tmp/heap-$label.yaml" <<EOF
+    mem_limit: $container_mem
+    memswap_limit: $container_mem
+EOF
+	fi
 	local compose=(docker compose --project-name "$project" --project-directory "$scenario_dir"
 		--env-file "$repo_root/versions.env" --env-file "$tmp/env"
 		-f "$scenario_dir/compose.yaml" -f "$scenario_dir/compose.bench.yaml" -f "$tmp/heap-$label.yaml")
@@ -231,8 +321,16 @@ EOF
 
 	cid=$(BENCH_DATA_DIR="$data" "${compose[@]}" ps -q es01)
 	[ -n "$cid" ] || die "$label: no container id for es01"
+	local swap_max
+	swap_max=$(docker exec "$cid" cat /sys/fs/cgroup/memory.swap.max 2>&1 || true)
+	echo "${label}_memory_swap_max: $swap_max" >>"$out/run.txt"
+	[ "$swap_mode" != off ] || [ "$swap_max" = 0 ] ||
+		die "$label: LM2_SWAP=off but memory.swap.max in the container is '$swap_max', not 0"
+
 	sample_memory "$cid" "$out/$label-monitor.txt" &
-	monitor_pid=$!
+	monitor_pids+=("$!")
+	sample_nodestats "$out/$label-nodestats.jsonl" "$tmp/nodestats-$label.json" &
+	monitor_pids+=("$!")
 
 	log "$label: loading $docs documents, $clients clients, bulk size $bulk_size"
 	rc=0
@@ -243,9 +341,12 @@ EOF
 		>"$out/$label-loader.json" 2>"$out/$label-loader.err" || rc=$?
 	echo "$label: loader exit=$rc" >>"$out/log.txt"
 
-	kill "$monitor_pid" 2>/dev/null || true
-	wait "$monitor_pid" 2>/dev/null || true
-	monitor_pid=""
+	local p
+	for p in "${monitor_pids[@]}"; do kill "$p" 2>/dev/null || true; done
+	for p in "${monitor_pids[@]}"; do wait "$p" 2>/dev/null || true; done
+	monitor_pids=()
+	sample_nodestats_once "$out/$label-nodestats.jsonl" "$tmp/nodestats-$label-final.json"
+	summarize_nodestats "$label" "$out/$label-nodestats.jsonl" >>"$out/run.txt"
 
 	docker inspect -f '{{.State.Status}} oom={{.State.OOMKilled}} restarts={{.RestartCount}} exit={{.State.ExitCode}}' "$cid" >"$out/$label-final-state.txt" 2>&1 || true
 	docker logs --tail 30 "$cid" >"$out/$label-container-tail.txt" 2>&1 || true
@@ -270,12 +371,24 @@ EOF
 	echo "bad_heap: $bad_heap"
 	echo "control_heap: $control_heap"
 	echo "cpuset: $BENCH_ES_CPUSET"
+	echo "order: $order"
+	echo "LM2_SWAP: $swap_mode"
+	echo "container_mem_limit: $container_mem"
+	echo "vm.swappiness: $(cat /proc/sys/vm/swappiness 2>/dev/null || echo n/a)"
+	swapon --show --noheadings --bytes 2>/dev/null |
+		awk '{ n++; printf "swap_device: %s type=%s size=%s used=%s prio=%s\n", $1, $2, $3, $4, $5 } END { if (!n) print "swap_device: none" }' ||
+		echo "swap_device: swapon failed"
 	echo "data_fs_type: $data_fstype"
 	echo "es_image: $(grep -E '^ES_IMAGE=' "$repo_root/versions.env" | cut -d= -f2-)"
 	echo "repo_commit: $(git -C "$repo_root" rev-parse HEAD 2>/dev/null || echo n/a)"
 } >"$out/run.txt"
 
-run_one bad "$bad_heap"
-run_one control "$control_heap"
+IFS=, read -r -a run_order <<<"$order"
+for label in "${run_order[@]}"; do
+	case "$label" in
+	bad) run_one bad "$bad_heap" ;;
+	control) run_one control "$control_heap" ;;
+	esac
+done
 echo "end_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$out/run.txt"
 log "done: $out"
