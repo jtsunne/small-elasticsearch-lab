@@ -1,0 +1,9 @@
+03:21:25 running oom=false restarts=0 exit=0 | anon 2112102400 file 417792 shmem 0 file_mapped 106496 swapcached 0 low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 sock_throttled 0 swap_current 0 swap_max 0
+03:21:35 running oom=false restarts=0 exit=0 | anon 2131369984 file 1179648 shmem 0 file_mapped 225280 swapcached 0 low 0 high 0 max 240 oom 0 oom_kill 0 oom_group_kill 0 sock_throttled 771 swap_current 0 swap_max 0
+03:21:45 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:21:55 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:22:05 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:22:15 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:22:25 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:22:35 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running
+03:22:45 exited oom=true restarts=0 exit=137 | Error response from daemon: container e776ecc9f4748634adc29fb6b1cc2de4cc4e46041b926fa3910ea52a6430f4a9 is not running

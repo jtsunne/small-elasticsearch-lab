@@ -1,0 +1,2 @@
+index docs.count store.size pri.store.size
+lm2      3000000      1.2gb          1.2gb

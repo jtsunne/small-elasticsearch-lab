@@ -1,0 +1,10 @@
+{"t":"2026-10-29T03:21:25Z","ok":true,"curl_exit":0,"http_code":200,"stats":{"nodes":{"fn78sijhRGaCvOh5MOuOaQ":{"os":{"cgroup":{"memory":{"control_group":"/","limit_in_bytes":"2147483648","usage_in_bytes":"2123268096"}}},"jvm":{"mem":{"heap_used_percent":30},"gc":{"collectors":{"young":{"collection_count":11,"collection_time_in_millis":378},"G1 Concurrent GC":{"collection_count":10,"collection_time_in_millis":43},"old":{"collection_count":0,"collection_time_in_millis":0}}}}}}}}
+{"t":"2026-10-29T03:21:35Z","ok":true,"curl_exit":0,"http_code":200,"stats":{"nodes":{"fn78sijhRGaCvOh5MOuOaQ":{"os":{"cgroup":{"memory":{"control_group":"/","limit_in_bytes":"2147483648","usage_in_bytes":"2146050048"}}},"jvm":{"mem":{"heap_used_percent":52},"gc":{"collectors":{"young":{"collection_count":11,"collection_time_in_millis":378},"G1 Concurrent GC":{"collection_count":10,"collection_time_in_millis":43},"old":{"collection_count":0,"collection_time_in_millis":0}}}}}}}}
+{"t":"2026-10-29T03:21:45Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:21:55Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:05Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:15Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:25Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:35Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:45Z","ok":false,"curl_exit":7,"http_code":"000"}
+{"t":"2026-10-29T03:22:54Z","ok":false,"curl_exit":7,"http_code":"000"}

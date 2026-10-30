@@ -1,0 +1,38 @@
+experiment: L-M2, scenarios/bad-heap, synthetic bulk load
+start_utc: 2026-10-29T03:14:07Z
+docs: 3000000
+seed: 42
+awk: GNU Awk 5.4.1, API 4.1, PMA Avon 8-g1, (GNU MPFR 4.2.2, GNU MP 6.3.0)
+clients: 2
+bulk_size: 1000
+refresh_interval: index default
+mapping: dynamic
+bad_heap: 1536m
+control_heap: 1g
+cpuset: 1
+order: control,bad
+LM2_SWAP: off
+container_mem_limit: 2g
+vm.swappiness: 150
+swap_device: /swap/swapfile type=file size=16597045248 used=0 prio=0
+swap_device: /dev/zram0 type=partition size=16596856832 used=2110570496 prio=100
+data_fs_type: btrfs
+es_image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5@sha256:13b4a40bb095774f5fda635e45fd5677cc6a26565e42b24997b0c72b88e75984
+repo_commit: cae016cf2e837ad7313c909afee15e13285c056a
+control_memory_swap_max: 0
+control_nodestats_samples: 34 answered, 0 not answered
+control_gc_young_count_delta: 52
+control_gc_young_time_ms_delta: 859
+control_gc_old_count_delta: 0
+control_gc_old_time_ms_delta: 0
+bad_memory_swap_max: 0
+bad_nodestats_samples: 2 answered, 8 not answered
+bad_gc_young_count_delta: 0
+bad_gc_young_time_ms_delta: 0
+bad_gc_old_count_delta: 0
+bad_gc_old_time_ms_delta: 0
+end_utc: 2026-10-29T03:22:55Z
+host: laptop-6c16g-nvme-01 (the author's laptop); no host.txt was captured for this run, see host.txt of the tmpfs-backed run 2026-10-29-laptop-6c16g-nvme-01-es-9.5.5-lm2 for the same host
+script: bench/l-m2.sh from the working tree with the LM2_SWAP, LM2_ORDER and node stats changes uncommitted; HEAD was repo_commit above, the script was last modified at 03:12:43Z, before start_utc
+outcome: control 9161.9 docs/s, p99 1579.9 ms, no swap, no OOM kill; bad OOM-killed (OOMKilled true, exit 137) about 13.7 s after its load started, 58000 documents acknowledged, 2942000 failed as transport_error; the bad loader's docs/s is not a throughput; arithmetic in results/FINDINGS-2026-10-29.md, section L-M2
+files: <label>-loader.json and <label>-summary.csv (throughput, latency, failures), <label>-monitor.txt (cgroup memory every 10 s, UTC), <label>-nodestats.jsonl (GC, heap and cgroup memory from _nodes/stats every 10 s, one line per attempt), <label>-final-state.txt (OOM and restart state), <label>-heap.json, <label>-index.txt, <label>-loader.err, <label>-requests.jsonl (one line per bulk request), <label>-container-tail.txt (last 30 log lines), raw/<label>-container.log (whole container log, git-ignored), log.txt (compose output)

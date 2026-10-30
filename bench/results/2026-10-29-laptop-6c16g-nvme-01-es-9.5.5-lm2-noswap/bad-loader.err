@@ -1,0 +1,3 @@
+loader: refresh: Post "http://127.0.0.1:9200/lm2/_refresh": dial tcp 127.0.0.1:9200: connect: connection refused
+loader: store size: Get "http://127.0.0.1:9200/lm2/_stats/store": dial tcp 127.0.0.1:9200: connect: connection refused
+loader: doc count: Get "http://127.0.0.1:9200/lm2/_count": dial tcp 127.0.0.1:9200: connect: connection refused
