@@ -783,6 +783,7 @@ function esSetupRoles(d) {
 # elastic. Run it again to rotate: it creates a new key, see README.md.
 #
 # Usage: setup-roles.sh [--key-out FILE]
+# READY_TIMEOUT (seconds, default 180) bounds the wait for the cluster.
 #
 # The node publishes no port and Caddy does not proxy _security, so every call
 # runs curl inside the es01 container against 127.0.0.1:9200. Passwords reach
@@ -850,6 +851,34 @@ es_ok() {
 \tesac
 }
 
+# wait_ready PATH: GET PATH until it answers 200. compose up --wait returns
+# when the node answers HTTP, which can be before the .security-7 primary is
+# assigned; until then even elastic fails with 503 ("failed to retrieve
+# password hash for reserved user"), or 401. 401, 408 (health timeout), 503
+# and no answer are retried until READY_TIMEOUT seconds (default 180) have
+# passed; anything else fails at once.
+wait_ready() {
+\tlocal timeout=\${READY_TIMEOUT:-180} start=$SECONDS attempt=0 res status
+\t[[ $timeout =~ ^[0-9]+$ ]] || { echo "error: READY_TIMEOUT must be a number of seconds" >&2; return 1; }
+\twhile :; do
+\t\tattempt=$((attempt + 1))
+\t\tres=$(es GET "$1" </dev/null 2>/dev/null) || true
+\t\tstatus=\${res##*$'\n'}
+\t\t[[ $status =~ ^[0-9]{3}$ ]] || status=000
+\t\tcase "$status" in
+\t\t200) return 0 ;;
+\t\t401 | 408 | 503 | 000) ;;
+\t\t*) echo "error: GET $1 returned $status: \${res%$'\n'*}" >&2; return 1 ;;
+\t\tesac
+\t\tif [ $((SECONDS - start)) -ge "$timeout" ]; then
+\t\t\techo "error: GET $1 not ready after \${timeout}s ($attempt attempts), last answer $status: \${res%$'\n'*}" >&2
+\t\t\treturn 1
+\t\tfi
+\t\techo "waiting for $1: attempt $attempt answered $status, $((SECONDS - start))s of \${timeout}s" >&2
+\t\tsleep 3
+\tdone
+}
+
 create_index_once() {
 \tif [ "$(es GET "/$1" </dev/null | tail -n1)" = 404 ]; then
 \t\tes_ok PUT "/$1" >/dev/null
@@ -861,9 +890,9 @@ create_index_once() {
 
 ${d.three ? t`
 # Green, not yellow: with three nodes every replica has somewhere to go.
-es_ok GET '/_cluster/health?wait_for_status=green&wait_for_nodes=3&timeout=120s' </dev/null >/dev/null
+wait_ready '/_cluster/health?wait_for_status=green&wait_for_nodes=3&timeout=30s'
 ` : t`
-es_ok GET '/_cluster/health?wait_for_status=yellow&timeout=60s' </dev/null >/dev/null
+wait_ready '/_cluster/health?wait_for_status=yellow&timeout=30s'
 `}
 es_ok PUT /_index_template/${p} >/dev/null <<'JSON'
 {
